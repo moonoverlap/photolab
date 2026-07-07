@@ -268,6 +268,7 @@
     font-size:12.5px;font-weight:700;color:#cfd6e0;background:transparent;
   }
   .zoom-b.sel{background:rgba(255,255,255,.92);color:#111}
+  #camFilterOverlay{position:absolute;inset:0;pointer-events:none;mix-blend-mode:soft-light}
   #camGuide{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.9;transition:opacity .2s}
   #camGuide.dim{opacity:0}
   #camGuide line,#camGuide rect,#camGuide path,#camGuide circle{
@@ -292,6 +293,8 @@
   #shutterBtn span{width:56px;height:56px;border-radius:50%;background:#fff;transition:transform .1s}
   #shutterBtn:active span{transform:scale(.85)}
   #camScreen .chip-row{padding-bottom:2px}
+  #camFilterRow{margin-bottom:6px}
+  #camFilterRow .chip{padding:7px 13px;font-size:12.5px}
   #camScreen .chip{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.18);color:#cfd6e0}
   #camScreen .chip.sel{background:rgba(41,91,255,.35);border-color:var(--accent2);color:#fff}
 
@@ -534,6 +537,7 @@
   </div>
   <div class="cam-stage">
     <video id="camVideo" autoplay playsinline muted></video>
+    <div id="camFilterOverlay"></div>
     <svg id="camGuide" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
     <p class="cam-tip" id="camTip">교차점에 피사체를 두면 안정적인 구도가 돼요</p>
     <div id="zoomBtns">
@@ -543,6 +547,7 @@
     </div>
   </div>
   <div class="cam-bottom">
+    <div class="chip-row" id="camFilterRow"></div>
     <div class="chip-row" id="guideRow"></div>
     <div class="cam-shutter-row">
       <button class="cam-mini" onclick="pickImage(false)">앨범</button>
@@ -1336,6 +1341,32 @@ const GUIDES=[
 ];
 let camStream=null, camFacing='environment', guideDim=false;
 let camZoom=1, camZoomTrack=null, camZoomCaps=null; // 하드웨어 줌 지원 정보
+let camFilter='none'; // 카메라 실시간 필터 (PRESETS의 id)
+
+// 카메라 필터 칩 생성 (원본 + 아이폰 감성 6종 + 대표 기본)
+const CAM_FILTER_IDS=['none','ip_nat','ip_gold','ip_cool','ip_mute','ip_soft','ip_cine','film','warm','cool','vivid','mono'];
+(function(){
+  const row=$('#camFilterRow');
+  CAM_FILTER_IDS.forEach((id,i)=>{
+    const p=PRESETS.find(x=>x.id===id); if(!p)return;
+    const b=document.createElement('button');
+    b.className='chip'+(i===0?' sel':''); b.textContent=p.name;
+    b.addEventListener('click',()=>{
+      camFilter=id;
+      $$('#camFilterRow .chip').forEach(c=>c.classList.remove('sel'));
+      b.classList.add('sel');
+      applyCamFilter();
+    });
+    row.appendChild(b);
+  });
+})();
+function applyCamFilter(){
+  const p=PRESETS.find(x=>x.id===camFilter);
+  const v=$('#camVideo'), ov=$('#camFilterOverlay');
+  v.style.filter=(p&&p.f)?p.f:'none';
+  if(p&&p.ov){ ov.style.background=p.ov.c; ov.style.display='block'; }
+  else{ ov.style.display='none'; }
+}
 
 function applyDigitalZoom(){
   const v=$('#camVideo');
@@ -1399,6 +1430,9 @@ async function openCamera(){
     await startCameraStream();
     $('#camScreen').classList.add('on');
     setGuide(GUIDES[0]);
+    camFilter='none';
+    $$('#camFilterRow .chip').forEach((c,i)=>c.classList.toggle('sel',i===0));
+    applyCamFilter();
   }catch(err){
     toast('카메라 권한을 확인해주세요 — 기본 카메라로 전환');
     pickImage(true);
@@ -1453,8 +1487,19 @@ async function capturePhoto(){
   const c=document.createElement('canvas');
   c.width=cropW; c.height=cropH;
   const cc=c.getContext('2d');
+  // 선택한 카메라 필터를 결과에 굽기
+  const pf=PRESETS.find(x=>x.id===camFilter);
   if(camFacing==='user'){ cc.translate(cropW,0); cc.scale(-1,1); } // 미리보기와 좌우 동일
+  cc.filter=(pf&&pf.f)?pf.f:'none';
   cc.drawImage(v, sx,sy,cropW,cropH, 0,0,cropW,cropH);
+  cc.filter='none';
+  if(pf&&pf.ov){
+    cc.setTransform(1,0,0,1,0,0); // 오버레이는 반전 영향 없음
+    cc.globalCompositeOperation=pf.ov.m;
+    cc.fillStyle=pf.ov.c;
+    cc.fillRect(0,0,cropW,cropH);
+    cc.globalCompositeOperation='source-over';
+  }
   const img=await new Promise((res,rej)=>{
     if(window.createImageBitmap){createImageBitmap(c).then(res).catch(rej);}
     else{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=c.toDataURL('image/jpeg',0.95);}
