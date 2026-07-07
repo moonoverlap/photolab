@@ -1,7 +1,15 @@
 <!DOCTYPE html>
+<!--
+  포토랩 (PhotoLab)
+  Copyright (c) 2026 moonoverlap. All Rights Reserved.
+  본 코드의 무단 복제·수정·배포·2차 저작을 금지합니다.
+  Unauthorized copying, modification, or distribution is prohibited.
+-->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta name="author" content="moonoverlap">
+<meta name="copyright" content="Copyright (c) 2026 moonoverlap. All Rights Reserved.">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0E1116">
 <meta name="mobile-web-app-capable" content="yes">
@@ -59,6 +67,7 @@
   }
   .btn-ghost:active{background:var(--panel2)}
   .start-hint{font-size:12px;color:var(--txt2);text-align:center;line-height:1.7}
+  .copyright{font-size:10.5px;color:#4A5460;text-align:center;letter-spacing:.2px}
 
   /* ───── 에디터 ───── */
   #editor{flex:1;display:none;flex-direction:column;min-height:0}
@@ -335,6 +344,7 @@
   </div>
   <p class="start-hint">구도 카메라 · 보정 · AI 보정 8종 · 필터 · 자르기 · 텍스트 · 액자<br>
   삼성 인터넷 메뉴 → <b>현재 페이지 추가 → 홈 화면</b>으로 앱처럼 사용하세요</p>
+  <p class="copyright">© 2026 moonoverlap · All Rights Reserved · 개인 사용 전용</p>
 </div>
 
 <input type="file" id="fileInput" accept="image/*" hidden>

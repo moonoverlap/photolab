@@ -9,3 +9,7 @@
 ## 사용
 GitHub Pages 주소 접속 → 삼성 인터넷 메뉴 → 현재 페이지 추가 → 홈 화면.
 AI 보정은 앱 내 ⚙ API 키 설정에서 Gemini API 키 입력 (키는 기기에만 저장됨).
+
+## 저작권
+Copyright (c) 2026 moonoverlap. All Rights Reserved.
+본 저장소는 개인 사용 목적으로만 공개되며, 무단 복제·수정·배포·2차 저작을 금지합니다. 자세한 내용은 [LICENSE](./LICENSE) 참조.
