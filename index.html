@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  포토랩 (PhotoLab)
+  라임포토랩 (Lime PhotoLab)
   Copyright (c) 2026 moonoverlap. All Rights Reserved.
   본 코드의 무단 복제·수정·배포·2차 저작을 금지합니다.
   Unauthorized copying, modification, or distribution is prohibited.
@@ -15,7 +15,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>포토랩 — 모바일 사진편집</title>
+<title>라임포토랩 — 모바일 사진편집</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
   :root{
@@ -257,8 +257,17 @@
   .cam-icon svg{width:20px;height:20px}
   .cam-guide-name{font-size:14px;font-weight:700;color:#fff}
   .cam-stage{flex:1;min-height:0;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
-  #camVideo{width:100%;height:100%;object-fit:cover}
+  #camVideo{width:100%;height:100%;object-fit:cover;transition:transform .12s ease-out;transform-origin:center}
   #camVideo.mirror{transform:scaleX(-1)}
+  #zoomBtns{
+    position:absolute;bottom:52px;left:50%;transform:translateX(-50%);
+    display:flex;gap:6px;background:rgba(0,0,0,.4);padding:5px;border-radius:22px;
+  }
+  .zoom-b{
+    min-width:38px;height:34px;padding:0 10px;border-radius:18px;
+    font-size:12.5px;font-weight:700;color:#cfd6e0;background:transparent;
+  }
+  .zoom-b.sel{background:rgba(255,255,255,.92);color:#111}
   #camGuide{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.9;transition:opacity .2s}
   #camGuide.dim{opacity:0}
   #camGuide line,#camGuide rect,#camGuide path,#camGuide circle{
@@ -266,7 +275,7 @@
     filter:drop-shadow(0 0 1px rgba(0,0,0,.6));
   }
   .cam-tip{
-    position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+    position:absolute;bottom:100px;left:50%;transform:translateX(-50%);
     background:rgba(0,0,0,.55);color:#fff;font-size:11.5px;font-weight:600;
     padding:7px 13px;border-radius:20px;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis;
   }
@@ -329,8 +338,7 @@
         <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>
       </svg>
     </div>
-    <h1>포토랩</h1>
-    <p>갤럭시에서 바로 쓰는 사진편집기</p>
+    <h1>라임포토랩</h1>
   </div>
   <div class="start-btns">
     <button class="btn-primary" onclick="pickImage(false)">
@@ -342,8 +350,6 @@
       구도 가이드 카메라
     </button>
   </div>
-  <p class="start-hint">구도 카메라 · 보정 · AI 보정 8종 · 필터 · 자르기 · 텍스트 · 액자<br>
-  삼성 인터넷 메뉴 → <b>현재 페이지 추가 → 홈 화면</b>으로 앱처럼 사용하세요</p>
   <p class="copyright">© 2026 moonoverlap · All Rights Reserved · 개인 사용 전용</p>
 </div>
 
@@ -500,8 +506,9 @@
     <h3>사진 저장</h3>
     <p class="sheet-label">형식</p>
     <div class="opt-group" id="fmtGroup">
-      <button class="opt sel" data-fmt="jpeg">JPG (권장)</button>
-      <button class="opt" data-fmt="png">PNG</button>
+      <button class="opt sel" data-fmt="jpeg" data-q="0.92">JPG 고화질</button>
+      <button class="opt" data-fmt="jpeg" data-q="1">JPG 최고화질</button>
+      <button class="opt" data-fmt="png">PNG 무손실</button>
     </div>
     <p class="sheet-label">크기</p>
     <div class="opt-group" id="sizeGroup">
@@ -529,6 +536,11 @@
     <video id="camVideo" autoplay playsinline muted></video>
     <svg id="camGuide" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
     <p class="cam-tip" id="camTip">교차점에 피사체를 두면 안정적인 구도가 돼요</p>
+    <div id="zoomBtns">
+      <button class="zoom-b sel" data-z="1">1x</button>
+      <button class="zoom-b" data-z="2">2x</button>
+      <button class="zoom-b" data-z="3">3x</button>
+    </div>
   </div>
   <div class="cam-bottom">
     <div class="chip-row" id="guideRow"></div>
@@ -576,7 +588,7 @@ const S = {
   activeText:null,
   frame:'none',
   cropMode:false, aspect:'free',
-  fmt:'jpeg', sizeScale:1,
+  fmt:'jpeg', jpegQ:0.92, sizeScale:1,
 };
 let baseCanvas=null;   // 회전/반전 적용된 원본
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
@@ -1114,7 +1126,9 @@ function openSheet(){
 function closeSheet(){$('#sheet').classList.remove('on');}
 $$('#fmtGroup .opt').forEach(o=>o.addEventListener('click',()=>{
   $$('#fmtGroup .opt').forEach(x=>x.classList.remove('sel'));o.classList.add('sel');
-  S.fmt=o.dataset.fmt;updateSaveInfo();
+  S.fmt=o.dataset.fmt;
+  S.jpegQ=o.dataset.q?+o.dataset.q:0.92;
+  updateSaveInfo();
 }));
 $$('#sizeGroup .opt').forEach(o=>o.addEventListener('click',()=>{
   $$('#sizeGroup .opt').forEach(x=>x.classList.remove('sel'));o.classList.add('sel');
@@ -1125,7 +1139,8 @@ function updateSaveInfo(){
   const fs=frameSpec(cr.w*S.sizeScale,cr.h*S.sizeScale);
   let w=Math.round(cr.w*S.sizeScale), h=Math.round(cr.h*S.sizeScale);
   if(fs){w+=Math.round(fs.pad.l+fs.pad.r);h+=Math.round(fs.pad.t+fs.pad.b);}
-  $('#saveInfo').textContent=`출력 크기 약 ${w} × ${h}px · ${S.fmt==='jpeg'?'JPG 고화질(92%)':'PNG 무손실'}`;
+  const qLabel=S.fmt==='png'?'PNG 무손실':(S.jpegQ>=1?'JPG 최고화질(100%)':'JPG 고화질(92%)');
+  $('#saveInfo').textContent=`출력 크기 약 ${w} × ${h}px · ${qLabel}`;
 }
 function doSave(){
   const {cvs}=renderScene(S.sizeScale);
@@ -1140,7 +1155,7 @@ function doSave(){
     setTimeout(()=>URL.revokeObjectURL(a.href),3000);
     closeSheet();
     toast('갤러리(다운로드)에 저장했어요');
-  },'image/'+S.fmt,S.fmt==='jpeg'?0.92:undefined);
+  },'image/'+S.fmt,S.fmt==='jpeg'?S.jpegQ:undefined);
 }
 
 /* ═══════════════ AI 보정 (Gemini 이미지 모델) ═══════════════ */
@@ -1320,6 +1335,34 @@ const GUIDES=[
         <line x1="20" y1="0" x2="20" y2="100" stroke-dasharray="2 2"/><line x1="80" y1="0" x2="80" y2="100" stroke-dasharray="2 2"/>`},
 ];
 let camStream=null, camFacing='environment', guideDim=false;
+let camZoom=1, camZoomTrack=null, camZoomCaps=null; // 하드웨어 줌 지원 정보
+
+function applyDigitalZoom(){
+  const v=$('#camVideo');
+  const base=camFacing==='user'?'scaleX(-1) ':'';
+  v.style.transform=base+`scale(${camZoom})`;
+}
+async function setZoom(z){
+  camZoom=Math.max(1,Math.min(z, camZoomCaps?camZoomCaps.max:4));
+  // 하드웨어 줌 지원 시 실제 카메라 줌 사용 (화질 유지)
+  if(camZoomTrack&&camZoomCaps){
+    try{
+      const val=Math.min(camZoomCaps.max, Math.max(camZoomCaps.min, camZoom*(camZoomCaps.min||1)));
+      await camZoomTrack.applyConstraints({advanced:[{zoom:val}]});
+      $('#camVideo').style.transform=camFacing==='user'?'scaleX(-1)':''; // 디지털 확대 해제
+    }catch(e){ applyDigitalZoom(); }
+  }else{
+    applyDigitalZoom(); // 디지털 크롭 줌 폴백
+  }
+  // 버튼 하이라이트 (근접값)
+  $$('#zoomBtns .zoom-b').forEach(b=>b.classList.toggle('sel',+b.dataset.z===Math.round(camZoom)));
+}
+// 줌 버튼
+(function(){
+  $$('#zoomBtns .zoom-b').forEach(b=>{
+    b.addEventListener('click',()=>setZoom(+b.dataset.z));
+  });
+})();
 
 // 가이드 칩 생성
 (function(){
@@ -1370,6 +1413,17 @@ async function startCameraStream(){
   v.srcObject=camStream;
   v.classList.toggle('mirror',camFacing==='user');
   await v.play().catch(()=>{});
+  // 하드웨어 줌 지원 감지
+  camZoom=1; camZoomTrack=null; camZoomCaps=null;
+  const track=camStream.getVideoTracks()[0];
+  if(track&&track.getCapabilities){
+    const caps=track.getCapabilities();
+    if(caps&&caps.zoom&&caps.zoom.max>caps.zoom.min){
+      camZoomTrack=track;
+      camZoomCaps={min:caps.zoom.min||1,max:caps.zoom.max};
+    }
+  }
+  setZoom(1);
 }
 function stopCameraStream(){
   if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
@@ -1385,11 +1439,22 @@ function closeCamera(){
 async function capturePhoto(){
   const v=$('#camVideo');
   if(!camStream||!v.videoWidth){toast('카메라 준비 중이에요');return;}
+  const vw=v.videoWidth, vh=v.videoHeight;
+  // 화면에 보이는 영역(object-fit:cover) 그대로 잘라서 저장
+  const dispW=v.clientWidth, dispH=v.clientHeight;
+  const scale=Math.max(dispW/vw, dispH/vh);        // cover 배율
+  // 디지털 줌인 경우 추가 크롭(하드웨어 줌이면 영상 자체가 확대되어 z=1 처리)
+  const z=camZoomTrack?1:camZoom;
+  const cropW=Math.round(dispW/scale/z);            // 원본에서 실제로 보이는 폭
+  const cropH=Math.round(dispH/scale/z);            // 원본에서 실제로 보이는 높이
+  const sx=Math.round((vw-cropW)/2);                // 중앙 크롭
+  const sy=Math.round((vh-cropH)/2);
+
   const c=document.createElement('canvas');
-  c.width=v.videoWidth; c.height=v.videoHeight;
+  c.width=cropW; c.height=cropH;
   const cc=c.getContext('2d');
-  if(camFacing==='user'){ cc.translate(c.width,0); cc.scale(-1,1); } // 미리보기와 동일하게
-  cc.drawImage(v,0,0);
+  if(camFacing==='user'){ cc.translate(cropW,0); cc.scale(-1,1); } // 미리보기와 좌우 동일
+  cc.drawImage(v, sx,sy,cropW,cropH, 0,0,cropW,cropH);
   const img=await new Promise((res,rej)=>{
     if(window.createImageBitmap){createImageBitmap(c).then(res).catch(rej);}
     else{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=c.toDataURL('image/jpeg',0.95);}
@@ -1398,6 +1463,24 @@ async function capturePhoto(){
   enterEditor(img);
   toast('촬영 완료 — 필터로 완성해보세요');
 }
+
+/* 핀치 줌 */
+(function(){
+  const stage=$('.cam-stage');
+  let startDist=0, startZoom=1;
+  const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  stage.addEventListener('touchstart',e=>{
+    if(e.touches.length===2){startDist=dist(e.touches);startZoom=camZoom;}
+  },{passive:true});
+  stage.addEventListener('touchmove',e=>{
+    if(e.touches.length===2&&startDist>0){
+      e.preventDefault();
+      const ratio=dist(e.touches)/startDist;
+      setZoom(startZoom*ratio);
+    }
+  },{passive:false});
+  stage.addEventListener('touchend',()=>{startDist=0;});
+})();
 
 /* ═══════════════ 토스트 ═══════════════ */
 let toastTimer=null;
