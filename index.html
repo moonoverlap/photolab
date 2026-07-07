@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0E1116">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>포토랩 — 모바일 사진편집</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  :root{
+    --bg:#0E1116; --panel:#161B22; --panel2:#1D242E;
+    --line:#2A323E; --txt:#F2F5F9; --txt2:#8B97A6;
+    --accent:#295BFF; --accent2:#5E82FF; --danger:#FF5A5A;
+    --radius:14px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+  body{
+    font-family:'Pretendard Variable',Pretendard,-apple-system,'Noto Sans KR',sans-serif;
+    background:var(--bg); color:var(--txt);
+    display:flex; flex-direction:column;
+    padding-top:env(safe-area-inset-top);
+    padding-bottom:env(safe-area-inset-bottom);
+    touch-action:manipulation;
+  }
+  button{font-family:inherit;border:none;background:none;color:inherit;cursor:pointer}
+  input,select{font-family:inherit}
+
+  /* ───── 시작 화면 ───── */
+  #startScreen{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:28px; padding:32px 24px;
+  }
+  .logo{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .logo-mark{
+    width:64px;height:64px;border-radius:18px;
+    background:linear-gradient(135deg,#295BFF,#6C4DFF);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 8px 28px rgba(41,91,255,.35);
+  }
+  .logo-mark svg{width:32px;height:32px}
+  .logo h1{font-size:24px;font-weight:800;letter-spacing:-.5px}
+  .logo p{font-size:13px;color:var(--txt2)}
+  .start-btns{display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px}
+  .btn-primary{
+    background:var(--accent);color:#fff;font-size:16px;font-weight:700;
+    padding:16px;border-radius:var(--radius);
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    transition:transform .1s;
+  }
+  .btn-primary:active{transform:scale(.97)}
+  .btn-ghost{
+    background:var(--panel);color:var(--txt);font-size:15px;font-weight:600;
+    padding:15px;border-radius:var(--radius);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;gap:8px;
+  }
+  .btn-ghost:active{background:var(--panel2)}
+  .start-hint{font-size:12px;color:var(--txt2);text-align:center;line-height:1.7}
+
+  /* ───── 에디터 ───── */
+  #editor{flex:1;display:none;flex-direction:column;min-height:0}
+  #editor.on{display:flex}
+
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 12px;flex:0 0 auto;
+  }
+  .topbar .group{display:flex;gap:6px;align-items:center}
+  .tb-btn{
+    height:38px;padding:0 13px;border-radius:10px;font-size:13.5px;font-weight:600;
+    color:var(--txt);background:var(--panel);border:1px solid var(--line);
+    display:flex;align-items:center;gap:5px;
+  }
+  .tb-btn:active{background:var(--panel2)}
+  .tb-btn.save{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+  .tb-btn svg{width:16px;height:16px}
+
+  /* 캔버스 영역 */
+  #stage{
+    flex:1;min-height:0;position:relative;
+    display:flex;align-items:center;justify-content:center;
+    padding:8px 12px; overflow:hidden;
+    background:
+      radial-gradient(ellipse at 50% 40%, rgba(41,91,255,.06), transparent 60%),
+      var(--bg);
+  }
+  #canvasWrap{position:relative;max-width:100%;max-height:100%;line-height:0}
+  #preview{
+    max-width:100%;max-height:100%;
+    border-radius:6px;
+    box-shadow:0 4px 40px rgba(0,0,0,.5);
+    touch-action:none;
+  }
+  #compareTag{
+    position:absolute;top:10px;left:10px;z-index:5;
+    background:rgba(0,0,0,.65);color:#fff;font-size:11px;font-weight:700;
+    padding:5px 10px;border-radius:8px;display:none;pointer-events:none;
+  }
+
+  /* 자르기 오버레이 */
+  #cropLayer{position:absolute;inset:0;display:none;touch-action:none}
+  #cropLayer.on{display:block}
+  .crop-shade{position:absolute;background:rgba(0,0,0,.55);pointer-events:none}
+  #cropBox{
+    position:absolute;border:1.5px solid #fff;
+    box-shadow:0 0 0 1px rgba(0,0,0,.4);
+    touch-action:none;
+  }
+  #cropBox::before,#cropBox::after{
+    content:'';position:absolute;pointer-events:none;
+  }
+  #cropBox::before{left:33.33%;right:33.33%;top:0;bottom:0;border-left:1px solid rgba(255,255,255,.4);border-right:1px solid rgba(255,255,255,.4)}
+  #cropBox::after{top:33.33%;bottom:33.33%;left:0;right:0;border-top:1px solid rgba(255,255,255,.4);border-bottom:1px solid rgba(255,255,255,.4)}
+  .crop-handle{
+    position:absolute;width:34px;height:34px;touch-action:none;
+  }
+  .crop-handle::after{
+    content:'';position:absolute;width:18px;height:18px;
+    border:3px solid #fff;
+  }
+  .crop-handle.tl{top:-17px;left:-17px}.crop-handle.tl::after{top:14px;left:14px;border-right:none;border-bottom:none}
+  .crop-handle.tr{top:-17px;right:-17px}.crop-handle.tr::after{top:14px;right:14px;border-left:none;border-bottom:none}
+  .crop-handle.bl{bottom:-17px;left:-17px}.crop-handle.bl::after{bottom:14px;left:14px;border-right:none;border-top:none}
+  .crop-handle.br{bottom:-17px;right:-17px}.crop-handle.br::after{bottom:14px;right:14px;border-left:none;border-top:none}
+
+  /* 하단 패널 */
+  #panelArea{flex:0 0 auto;background:var(--panel);border-top:1px solid var(--line)}
+  .tool-panel{display:none;padding:14px 16px 6px;min-height:118px}
+  .tool-panel.on{display:block}
+
+  /* 슬라이더 행 */
+  .slider-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+  .slider-row label{flex:0 0 44px;font-size:12.5px;font-weight:600;color:var(--txt2)}
+  .slider-row output{flex:0 0 34px;font-size:12px;text-align:right;color:var(--txt);font-variant-numeric:tabular-nums}
+  input[type=range]{
+    flex:1;-webkit-appearance:none;appearance:none;height:26px;background:transparent;touch-action:none;
+  }
+  input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:var(--line)}
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+    background:#fff;border:6px solid var(--accent);margin-top:-9px;
+    box-shadow:0 2px 8px rgba(0,0,0,.4);
+  }
+
+  /* 가로 스크롤 칩 */
+  .chip-row{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
+  .chip-row::-webkit-scrollbar{display:none}
+  .chip{
+    flex:0 0 auto;padding:9px 15px;border-radius:11px;font-size:13px;font-weight:600;
+    background:var(--panel2);color:var(--txt2);border:1px solid var(--line);
+    display:flex;align-items:center;gap:6px;
+  }
+  .chip.sel{background:rgba(41,91,255,.16);color:var(--accent2);border-color:var(--accent)}
+  .chip:active{transform:scale(.96)}
+
+  /* 필터 썸네일 */
+  .filter-row{display:flex;gap:10px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
+  .filter-row::-webkit-scrollbar{display:none}
+  .f-item{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .f-item canvas{
+    width:58px;height:58px;border-radius:12px;border:2px solid transparent;
+    background:var(--panel2);
+  }
+  .f-item.sel canvas{border-color:var(--accent)}
+  .f-item span{font-size:11px;color:var(--txt2);font-weight:600}
+  .f-item.sel span{color:var(--accent2)}
+
+  /* 회전 버튼 그리드 */
+  .rot-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding-bottom:10px}
+  .rot-btn{
+    background:var(--panel2);border:1px solid var(--line);border-radius:12px;
+    padding:14px 4px;display:flex;flex-direction:column;align-items:center;gap:7px;
+    font-size:11.5px;font-weight:600;color:var(--txt2);
+  }
+  .rot-btn:active{background:#242D39}
+  .rot-btn svg{width:22px;height:22px;stroke:var(--txt)}
+
+  /* 텍스트 패널 */
+  .text-input-row{display:flex;gap:8px;margin-bottom:10px}
+  .text-input-row input[type=text]{
+    flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:11px;
+    padding:11px 13px;font-size:14px;color:var(--txt);outline:none;
+  }
+  .text-input-row input[type=text]:focus{border-color:var(--accent)}
+  .mini-btn{
+    flex:0 0 auto;padding:0 15px;border-radius:11px;font-size:13px;font-weight:700;
+    background:var(--accent);color:#fff;
+  }
+  .mini-btn.del{background:var(--panel2);color:var(--danger);border:1px solid var(--line)}
+  .swatches{display:flex;gap:9px;align-items:center;overflow-x:auto;padding-bottom:4px}
+  .swatch{
+    flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:2px solid var(--line);
+  }
+  .swatch.sel{border-color:var(--accent);box-shadow:0 0 0 2px rgba(41,91,255,.35)}
+
+  /* 하단 탭바 */
+  #tabbar{
+    display:flex;overflow-x:auto;scrollbar-width:none;
+    border-top:1px solid var(--line);background:var(--panel);
+    flex:0 0 auto;
+  }
+  #tabbar::-webkit-scrollbar{display:none}
+  .tab{
+    flex:1 0 64px;padding:10px 4px 12px;display:flex;flex-direction:column;
+    align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--txt2);
+  }
+  .tab svg{width:21px;height:21px;stroke:currentColor}
+  .tab.sel{color:var(--accent2)}
+  .tab.sel svg{stroke:var(--accent2)}
+
+  /* 자르기 하단 액션 */
+  .crop-actions{display:flex;gap:8px;margin-top:2px;padding-bottom:10px}
+  .crop-actions .btn-ghost,.crop-actions .btn-primary{flex:1;padding:12px;font-size:14px}
+
+  /* 저장 시트 */
+  #sheet{
+    position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;
+    align-items:flex-end;z-index:50;
+  }
+  #sheet.on{display:flex}
+  .sheet-body{
+    width:100%;background:var(--panel);border-radius:20px 20px 0 0;
+    padding:20px 20px calc(20px + env(safe-area-inset-bottom));
+    animation:up .22s ease;
+  }
+  @keyframes up{from{transform:translateY(40px);opacity:.5}to{transform:none;opacity:1}}
+  .sheet-body h3{font-size:16px;font-weight:800;margin-bottom:14px}
+  .opt-group{display:flex;gap:8px;margin-bottom:12px}
+  .opt{
+    flex:1;padding:12px;border-radius:11px;text-align:center;font-size:13.5px;font-weight:600;
+    background:var(--panel2);border:1px solid var(--line);color:var(--txt2);
+  }
+  .opt.sel{background:rgba(41,91,255,.16);border-color:var(--accent);color:var(--accent2)}
+  .sheet-label{font-size:12px;color:var(--txt2);font-weight:600;margin-bottom:7px}
+  .save-info{font-size:12px;color:var(--txt2);margin:4px 0 14px}
+
+  /* 구도 가이드 카메라 */
+  #camScreen{
+    position:fixed;inset:0;background:#000;z-index:40;display:none;flex-direction:column;
+    padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);
+  }
+  #camScreen.on{display:flex}
+  .cam-top{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;flex:0 0 auto}
+  .cam-icon{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center}
+  .cam-icon svg{width:20px;height:20px}
+  .cam-guide-name{font-size:14px;font-weight:700;color:#fff}
+  .cam-stage{flex:1;min-height:0;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+  #camVideo{width:100%;height:100%;object-fit:cover}
+  #camVideo.mirror{transform:scaleX(-1)}
+  #camGuide{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.9;transition:opacity .2s}
+  #camGuide.dim{opacity:0}
+  #camGuide line,#camGuide rect,#camGuide path,#camGuide circle{
+    stroke:rgba(255,255,255,.85);stroke-width:.35;fill:none;
+    filter:drop-shadow(0 0 1px rgba(0,0,0,.6));
+  }
+  .cam-tip{
+    position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,.55);color:#fff;font-size:11.5px;font-weight:600;
+    padding:7px 13px;border-radius:20px;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis;
+  }
+  .cam-bottom{flex:0 0 auto;background:#000;padding:10px 14px 14px}
+  .cam-shutter-row{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+  .cam-mini{
+    width:72px;padding:10px 0;border-radius:11px;background:rgba(255,255,255,.12);
+    color:#fff;font-size:12px;font-weight:700;text-align:center;
+  }
+  #shutterBtn{
+    width:72px;height:72px;border-radius:50%;border:4px solid #fff;
+    display:flex;align-items:center;justify-content:center;background:transparent;
+  }
+  #shutterBtn span{width:56px;height:56px;border-radius:50%;background:#fff;transition:transform .1s}
+  #shutterBtn:active span{transform:scale(.85)}
+  #camScreen .chip-row{padding-bottom:2px}
+  #camScreen .chip{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.18);color:#cfd6e0}
+  #camScreen .chip.sel{background:rgba(41,91,255,.35);border-color:var(--accent2);color:#fff}
+
+  /* AI 보정 */
+  .ai-note{font-size:11.5px;color:var(--txt2);line-height:1.6;margin:2px 0 8px}
+  .chip .spark{color:#FFD335;font-size:12px}
+  .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;z-index:55}
+  .sheet-bg.on{display:flex}
+  .sheet-input{
+    width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:11px;
+    padding:12px 14px;font-size:14px;color:var(--txt);outline:none;
+  }
+  .sheet-input:focus{border-color:var(--accent)}
+  #loading{
+    position:fixed;inset:0;background:rgba(10,13,18,.82);backdrop-filter:blur(4px);
+    display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:70;
+  }
+  #loading.on{display:flex}
+  .spinner{
+    width:44px;height:44px;border-radius:50%;
+    border:4px solid rgba(94,130,255,.25);border-top-color:var(--accent2);
+    animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #loadingMsg{font-size:15px;font-weight:700}
+  .loading-sub{font-size:12px;color:var(--txt2)}
+
+  #toast{
+    position:fixed;left:50%;bottom:110px;transform:translateX(-50%) translateY(10px);
+    background:rgba(20,25,32,.95);border:1px solid var(--line);color:var(--txt);
+    font-size:13px;font-weight:600;padding:11px 18px;border-radius:12px;
+    opacity:0;pointer-events:none;transition:.25s;z-index:60;white-space:nowrap;
+  }
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- ═══════ 시작 화면 ═══════ -->
+<div id="startScreen">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>
+      </svg>
+    </div>
+    <h1>포토랩</h1>
+    <p>갤럭시에서 바로 쓰는 사진편집기</p>
+  </div>
+  <div class="start-btns">
+    <button class="btn-primary" onclick="pickImage(false)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+      갤러리에서 사진 선택
+    </button>
+    <button class="btn-ghost" onclick="openCamera()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      구도 가이드 카메라
+    </button>
+  </div>
+  <p class="start-hint">구도 카메라 · 보정 · AI 보정 8종 · 필터 · 자르기 · 텍스트 · 액자<br>
+  삼성 인터넷 메뉴 → <b>현재 페이지 추가 → 홈 화면</b>으로 앱처럼 사용하세요</p>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" hidden>
+<input type="file" id="camInput" accept="image/*" capture="environment" hidden>
+
+<!-- ═══════ 에디터 ═══════ -->
+<div id="editor">
+  <div class="topbar">
+    <div class="group">
+      <button class="tb-btn" onclick="goHome()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>뒤로
+      </button>
+      <button class="tb-btn" id="cmpBtn">원본</button>
+    </div>
+    <div class="group">
+      <button class="tb-btn" onclick="resetAll()">초기화</button>
+      <button class="tb-btn save" onclick="openSheet()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>저장
+      </button>
+    </div>
+  </div>
+
+  <div id="stage">
+    <span id="compareTag">원본</span>
+    <div id="canvasWrap">
+      <canvas id="preview"></canvas>
+      <div id="cropLayer">
+        <div class="crop-shade" id="shT"></div><div class="crop-shade" id="shB"></div>
+        <div class="crop-shade" id="shL"></div><div class="crop-shade" id="shR"></div>
+        <div id="cropBox">
+          <div class="crop-handle tl" data-h="tl"></div>
+          <div class="crop-handle tr" data-h="tr"></div>
+          <div class="crop-handle bl" data-h="bl"></div>
+          <div class="crop-handle br" data-h="br"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="panelArea">
+    <!-- 보정 -->
+    <div class="tool-panel on" id="p-adjust">
+      <div class="slider-row"><label>밝기</label><input type="range" min="50" max="150" value="100" data-adj="bri"><output>0</output></div>
+      <div class="slider-row"><label>대비</label><input type="range" min="50" max="150" value="100" data-adj="con"><output>0</output></div>
+      <div class="slider-row"><label>채도</label><input type="range" min="0" max="200" value="100" data-adj="sat"><output>0</output></div>
+      <div class="slider-row"><label>온도</label><input type="range" min="-50" max="50" value="0" data-adj="temp"><output>0</output></div>
+      <div class="slider-row"><label>비네트</label><input type="range" min="0" max="100" value="0" data-adj="vig"><output>0</output></div>
+    </div>
+
+    <!-- 필터 -->
+    <div class="tool-panel" id="p-filter">
+      <div class="filter-row" id="filterRow"></div>
+    </div>
+
+    <!-- 자르기 -->
+    <div class="tool-panel" id="p-crop">
+      <div class="chip-row" id="aspectRow">
+        <button class="chip sel" data-asp="free">자유</button>
+        <button class="chip" data-asp="1">1:1</button>
+        <button class="chip" data-asp="0.8">4:5</button>
+        <button class="chip" data-asp="0.75">3:4</button>
+        <button class="chip" data-asp="1.3333">4:3</button>
+        <button class="chip" data-asp="1.7778">16:9</button>
+        <button class="chip" data-asp="0.5625">9:16</button>
+      </div>
+      <div class="crop-actions">
+        <button class="btn-ghost" onclick="cancelCrop()">취소</button>
+        <button class="btn-primary" onclick="applyCrop()">자르기 적용</button>
+      </div>
+    </div>
+
+    <!-- 회전 -->
+    <div class="tool-panel" id="p-rotate">
+      <div class="rot-grid">
+        <button class="rot-btn" onclick="rotate(-90)">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6h6"/><path d="M2.66 15.57a10 10 0 1 0 .57-8.38"/></svg>왼쪽 90°
+        </button>
+        <button class="rot-btn" onclick="rotate(90)">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"/><path d="M21.34 15.57a10 10 0 1 1-.57-8.38"/></svg>오른쪽 90°
+        </button>
+        <button class="rot-btn" onclick="flip('h')">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 3v18"/><path d="M8 8l-4 4 4 4"/><path d="M16 8l4 4-4 4"/></svg>좌우 반전
+        </button>
+        <button class="rot-btn" onclick="flip('v')">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M3 12h18"/><path d="M8 8l4-4 4 4"/><path d="M8 16l4 4 4-4"/></svg>상하 반전
+        </button>
+      </div>
+    </div>
+
+    <!-- 텍스트 -->
+    <div class="tool-panel" id="p-text">
+      <div class="text-input-row">
+        <input type="text" id="textInput" placeholder="텍스트 입력 후 추가" maxlength="60">
+        <button class="mini-btn" onclick="addText()">추가</button>
+        <button class="mini-btn del" onclick="deleteText()">삭제</button>
+      </div>
+      <div class="slider-row"><label>크기</label><input type="range" min="2" max="20" value="7" id="textSize"><output>7</output></div>
+      <div class="swatches" id="swatches"></div>
+    </div>
+
+    <!-- 액자 -->
+    <div class="tool-panel" id="p-frame">
+      <div class="chip-row" id="frameRow">
+        <button class="chip sel" data-frame="none">없음</button>
+        <button class="chip" data-frame="white">화이트</button>
+        <button class="chip" data-frame="polaroid">폴라로이드</button>
+        <button class="chip" data-frame="black">블랙</button>
+        <button class="chip" data-frame="blue">딥블루</button>
+        <button class="chip" data-frame="round">라운드</button>
+      </div>
+    </div>
+
+    <!-- AI 보정 -->
+    <div class="tool-panel" id="p-ai">
+      <div class="chip-row" id="aiRow"></div>
+      <p class="ai-note">AI 보정은 인터넷 연결과 Gemini API 키가 필요해요 · 결과는 새 원본으로 적용됩니다</p>
+      <div class="crop-actions">
+        <button class="btn-ghost" onclick="undoAI()">↩ AI 되돌리기</button>
+        <button class="btn-ghost" onclick="openAISettings()">⚙ API 키 설정</button>
+      </div>
+    </div>
+
+    <!-- 탭바 -->
+    <div id="tabbar">
+      <button class="tab sel" data-tab="adjust">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>보정
+      </button>
+      <button class="tab" data-tab="ai">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>AI
+      </button>
+      <button class="tab" data-tab="filter">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 010 18"/><path d="M12 7a5 5 0 010 10"/></svg>필터
+      </button>
+      <button class="tab" data-tab="crop">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M6 2v14a2 2 0 002 2h14"/><path d="M18 22V8a2 2 0 00-2-2H2"/></svg>자르기
+      </button>
+      <button class="tab" data-tab="rotate">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"/><path d="M21.34 15.57a10 10 0 1 1-.57-8.38"/></svg>회전
+      </button>
+      <button class="tab" data-tab="text">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>텍스트
+      </button>
+      <button class="tab" data-tab="frame">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>액자
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ 저장 시트 ═══════ -->
+<div id="sheet" onclick="if(event.target===this)closeSheet()">
+  <div class="sheet-body">
+    <h3>사진 저장</h3>
+    <p class="sheet-label">형식</p>
+    <div class="opt-group" id="fmtGroup">
+      <button class="opt sel" data-fmt="jpeg">JPG (권장)</button>
+      <button class="opt" data-fmt="png">PNG</button>
+    </div>
+    <p class="sheet-label">크기</p>
+    <div class="opt-group" id="sizeGroup">
+      <button class="opt sel" data-size="1">원본</button>
+      <button class="opt" data-size="0.6">중간</button>
+      <button class="opt" data-size="0.35">SNS용</button>
+    </div>
+    <p class="save-info" id="saveInfo"></p>
+    <button class="btn-primary" style="width:100%" onclick="doSave()">저장하기</button>
+  </div>
+</div>
+
+<!-- ═══════ 구도 가이드 카메라 ═══════ -->
+<div id="camScreen">
+  <div class="cam-top">
+    <button class="cam-icon" onclick="closeCamera()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <span class="cam-guide-name" id="camGuideName">3분할 구도</span>
+    <button class="cam-icon" onclick="switchCamera()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"/><path d="M2.5 22v-6h6"/><path d="M2 11.5a10 10 0 0117-6.5l2.5 3"/><path d="M22 12.5a10 10 0 01-17 6.5L2.5 16"/></svg>
+    </button>
+  </div>
+  <div class="cam-stage">
+    <video id="camVideo" autoplay playsinline muted></video>
+    <svg id="camGuide" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+    <p class="cam-tip" id="camTip">교차점에 피사체를 두면 안정적인 구도가 돼요</p>
+  </div>
+  <div class="cam-bottom">
+    <div class="chip-row" id="guideRow"></div>
+    <div class="cam-shutter-row">
+      <button class="cam-mini" onclick="pickImage(false)">앨범</button>
+      <button id="shutterBtn" onclick="capturePhoto()"><span></span></button>
+      <button class="cam-mini" id="guideDimBtn" onclick="toggleGuideDim()">가이드 ON</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ AI 설정 시트 ═══════ -->
+<div id="aiSheet" class="sheet-bg" onclick="if(event.target===this)closeAISettings()">
+  <div class="sheet-body">
+    <h3>AI 보정 설정</h3>
+    <p class="sheet-label">Gemini API 키</p>
+    <input type="password" id="aiKeyInput" class="sheet-input" placeholder="AIza… 형식의 API 키" autocomplete="off">
+    <p class="sheet-label" style="margin-top:12px">모델</p>
+    <input type="text" id="aiModelInput" class="sheet-input" value="gemini-3.1-flash-image" autocomplete="off">
+    <p class="save-info" style="margin-top:8px;margin-bottom:0">모델이 안 되면 자동으로 다른 이미지 모델을 찾아 시도해요</p>
+    <p class="save-info" style="margin-top:12px">키는 이 기기 브라우저에만 저장돼요.<br>무료 발급: <b>aistudio.google.com</b> → Get API key</p>
+    <button class="btn-primary" style="width:100%" onclick="saveAISettings()">저장</button>
+  </div>
+</div>
+
+<!-- ═══════ 로딩 오버레이 ═══════ -->
+<div id="loading">
+  <div class="spinner"></div>
+  <p id="loadingMsg">AI 보정 중…</p>
+  <p class="loading-sub">보통 10~30초 걸려요</p>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ═══════════════ 상태 ═══════════════ */
+const S = {
+  img:null,            // 원본 ImageBitmap/Image
+  rot:0, flipH:false, flipV:false,
+  crop:null,           // {x,y,w,h} base(회전 적용) 좌표
+  adj:{bri:100,con:100,sat:100,temp:0,vig:0},
+  preset:'none',
+  texts:[],            // {id,str,x,y(0~1),size(%),color}
+  activeText:null,
+  frame:'none',
+  cropMode:false, aspect:'free',
+  fmt:'jpeg', sizeScale:1,
+};
+let baseCanvas=null;   // 회전/반전 적용된 원본
+const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+const preview=$('#preview'), pctx=preview.getContext('2d');
+
+const PRESETS=[
+  {id:'none',   name:'원본',   f:''},
+  // ─ 아이폰 감성 ─
+  {id:'ip_nat', name:'아이폰', f:'brightness(106%) contrast(95%) saturate(103%)',
+   ov:{c:'rgba(255,255,255,.06)',m:'soft-light'}},
+  {id:'ip_gold',name:'골드톤', f:'brightness(104%) contrast(97%) saturate(108%) sepia(8%)',
+   ov:{c:'rgba(255,180,90,.16)',m:'soft-light'}},
+  {id:'ip_cool',name:'쿨톤',   f:'brightness(105%) contrast(102%) saturate(96%)',
+   ov:{c:'rgba(120,160,255,.14)',m:'soft-light'}},
+  {id:'ip_mute',name:'뮤트',   f:'brightness(107%) contrast(92%) saturate(78%)',
+   ov:{c:'rgba(235,232,225,.10)',m:'soft-light'}},
+  {id:'ip_soft',name:'소프트', f:'brightness(109%) contrast(88%) saturate(94%)',
+   ov:{c:'rgba(255,245,238,.14)',m:'soft-light'}},
+  {id:'ip_cine',name:'시네마틱',f:'brightness(101%) contrast(112%) saturate(88%)',
+   ov:{c:'rgba(30,80,90,.18)',m:'soft-light'}},
+  // ─ 기본 ─
+  {id:'film',   name:'필름',   f:'contrast(104%) saturate(88%) sepia(14%) brightness(103%)'},
+  {id:'warm',   name:'웜',     f:'sepia(22%) saturate(112%) brightness(102%)'},
+  {id:'cool',   name:'쿨',     f:'saturate(104%) hue-rotate(-10deg) brightness(103%)'},
+  {id:'vivid',  name:'비비드', f:'saturate(145%) contrast(106%)'},
+  {id:'fade',   name:'페이드', f:'contrast(86%) brightness(109%) saturate(84%)'},
+  {id:'mono',   name:'모노',   f:'grayscale(100%) contrast(110%)'},
+  {id:'sepia',  name:'세피아', f:'sepia(70%) contrast(94%) brightness(103%)'},
+  {id:'noir',   name:'느와르', f:'grayscale(100%) contrast(130%) brightness(92%)'},
+];
+const COLORS=['#FFFFFF','#111111','#295BFF','#FFD335','#FF5A5A','#2ECC71','#FF8DC7','#8B97A6'];
+let textColor='#FFFFFF';
+
+/* ═══════════════ 이미지 로드 ═══════════════ */
+function pickImage(cam){ (cam?$('#camInput'):$('#fileInput')).click(); }
+$('#fileInput').addEventListener('change',e=>loadFile(e.target.files[0]));
+$('#camInput').addEventListener('change',e=>loadFile(e.target.files[0]));
+
+async function loadFile(file){
+  if(!file) return;
+  try{
+    let img;
+    if(window.createImageBitmap){
+      try{ img=await createImageBitmap(file,{imageOrientation:'from-image'}); }
+      catch(_){ img=await createImageBitmap(file); }
+    }else{
+      img=await new Promise((res,rej)=>{
+        const i=new Image();
+        i.onload=()=>res(i); i.onerror=rej;
+        i.src=URL.createObjectURL(file);
+      });
+    }
+    enterEditor(img);
+  }catch(err){ toast('사진을 불러올 수 없어요'); }
+  $('#fileInput').value=''; $('#camInput').value='';
+}
+function enterEditor(img){
+  S.img=img; resetEdits();
+  $('#startScreen').style.display='none';
+  $('#camScreen')&&$('#camScreen').classList.remove('on');
+  stopCameraStream();
+  $('#editor').classList.add('on');
+  rebuildBase(); buildFilterThumbs(); fitAndRender();
+}
+
+function resetEdits(){
+  S.rot=0;S.flipH=false;S.flipV=false;S.crop=null;
+  S.adj={bri:100,con:100,sat:100,temp:0,vig:0};
+  S.preset='none';S.texts=[];S.activeText=null;S.frame='none';
+  $$('#p-adjust input[type=range]').forEach(r=>{
+    r.value=r.dataset.adj==='bri'||r.dataset.adj==='con'||r.dataset.adj==='sat'?100:0;
+    syncOutput(r);
+  });
+  $$('#filterRow .f-item').forEach((el,i)=>el.classList.toggle('sel',i===0));
+  $$('#frameRow .chip').forEach((c,i)=>c.classList.toggle('sel',i===0));
+  $('#textInput').value='';
+}
+function resetAll(){ if(!S.img)return; resetEdits(); rebuildBase(); fitAndRender(); toast('모든 편집을 초기화했어요'); }
+function goHome(){
+  $('#editor').classList.remove('on'); $('#startScreen').style.display='flex';
+  exitCropUI();
+}
+
+/* ═══════════════ 베이스(회전/반전) ═══════════════ */
+function rebuildBase(){
+  const img=S.img, deg=((S.rot%360)+360)%360;
+  const sw=img.width, sh=img.height;
+  const w=(deg===90||deg===270)?sh:sw, h=(deg===90||deg===270)?sw:sh;
+  baseCanvas=document.createElement('canvas');
+  baseCanvas.width=w; baseCanvas.height=h;
+  const c=baseCanvas.getContext('2d');
+  c.save();
+  c.translate(w/2,h/2);
+  c.rotate(deg*Math.PI/180);
+  c.scale(S.flipH?-1:1,S.flipV?-1:1);
+  c.drawImage(img,-sw/2,-sh/2);
+  c.restore();
+}
+function rotate(deg){
+  if(!S.img)return;
+  // 회전 시 기존 crop 좌표 변환은 복잡도 대비 효용 낮음 → crop 해제
+  S.rot=(S.rot+deg+360)%360; S.crop=null;
+  rebuildBase(); fitAndRender();
+  if(S.cropMode) initCropBox();
+}
+function flip(dir){
+  if(!S.img)return;
+  if(dir==='h')S.flipH=!S.flipH; else S.flipV=!S.flipV;
+  S.crop=null; rebuildBase(); fitAndRender();
+  if(S.cropMode) initCropBox();
+}
+
+/* ═══════════════ 렌더 ═══════════════ */
+function currentCrop(){
+  return S.crop||{x:0,y:0,w:baseCanvas.width,h:baseCanvas.height};
+}
+function frameSpec(iw,ih){
+  const m=Math.min(iw,ih);
+  switch(S.frame){
+    case 'white':    return {pad:{t:m*.035,r:m*.035,b:m*.035,l:m*.035},bg:'#FFFFFF',round:0};
+    case 'polaroid': return {pad:{t:m*.05,r:m*.05,b:m*.2,l:m*.05},bg:'#FFFFFF',round:0};
+    case 'black':    return {pad:{t:m*.035,r:m*.035,b:m*.035,l:m*.035},bg:'#111417',round:0};
+    case 'blue':     return {pad:{t:m*.04,r:m*.04,b:m*.04,l:m*.04},bg:'#295BFF',round:0};
+    case 'round':    return {pad:{t:m*.045,r:m*.045,b:m*.045,l:m*.045},bg:'#FFFFFF',round:m*.06};
+    default:         return null;
+  }
+}
+function adjFilterString(){
+  const a=S.adj;
+  const p=PRESETS.find(p=>p.id===S.preset)?.f||'';
+  return `brightness(${a.bri}%) contrast(${a.con}%) saturate(${a.sat}%) ${p}`.trim();
+}
+/**
+ * 최종 이미지를 캔버스로 렌더
+ * scale: 출력 배율 / opts.raw: 원본만 / opts.noCropView: crop 무시(자르기 모드)
+ */
+function renderScene(scale,opts={}){
+  const raw=opts.raw, noCrop=opts.noCropView;
+  const cr=noCrop?{x:0,y:0,w:baseCanvas.width,h:baseCanvas.height}:currentCrop();
+  const iw=Math.round(cr.w*scale), ih=Math.round(cr.h*scale);
+  const fs=(!raw&&!noCrop)?frameSpec(iw,ih):null;
+  const padT=fs?Math.round(fs.pad.t):0, padB=fs?Math.round(fs.pad.b):0,
+        padL=fs?Math.round(fs.pad.l):0, padR=fs?Math.round(fs.pad.r):0;
+  const cw=iw+padL+padR, ch=ih+padT+padB;
+
+  const cvs=document.createElement('canvas');
+  cvs.width=cw; cvs.height=ch;
+  const c=cvs.getContext('2d');
+
+  if(fs){ c.fillStyle=fs.bg; c.fillRect(0,0,cw,ch); }
+
+  c.save();
+  if(fs&&fs.round>0){
+    roundPath(c,padL,padT,iw,ih,fs.round); // round는 이미 출력 크기 기준으로 계산됨
+    c.clip();
+  }
+  c.filter=raw?'none':adjFilterString();
+  c.imageSmoothingQuality='high';
+  c.drawImage(baseCanvas,cr.x,cr.y,cr.w,cr.h,padL,padT,iw,ih);
+  c.filter='none';
+
+  if(!raw){
+    // 프리셋 톤 오버레이 (아이폰 감성 계열)
+    const pv=PRESETS.find(x=>x.id===S.preset);
+    if(pv&&pv.ov){
+      c.globalCompositeOperation=pv.ov.m;
+      c.fillStyle=pv.ov.c;
+      c.fillRect(padL,padT,iw,ih);
+      c.globalCompositeOperation='source-over';
+    }
+    // 온도
+    if(S.adj.temp!==0){
+      const t=S.adj.temp;
+      c.globalCompositeOperation='soft-light';
+      c.fillStyle=t>0?`rgba(255,130,40,${Math.min(Math.abs(t)/50*.55,.55)})`
+                     :`rgba(40,110,255,${Math.min(Math.abs(t)/50*.55,.55)})`;
+      c.fillRect(padL,padT,iw,ih);
+      c.globalCompositeOperation='source-over';
+    }
+    // 비네트
+    if(S.adj.vig>0){
+      const g=c.createRadialGradient(padL+iw/2,padT+ih/2,Math.min(iw,ih)*.35,
+                                     padL+iw/2,padT+ih/2,Math.max(iw,ih)*.75);
+      g.addColorStop(0,'rgba(0,0,0,0)');
+      g.addColorStop(1,`rgba(0,0,0,${S.adj.vig/100*.75})`);
+      c.fillStyle=g; c.fillRect(padL,padT,iw,ih);
+    }
+  }
+  c.restore();
+
+  // 텍스트
+  if(!raw&&!noCrop){
+    S.texts.forEach(t=>{
+      const fpx=t.size/100*iw;
+      c.font=`700 ${fpx}px 'Pretendard Variable',Pretendard,sans-serif`;
+      c.textAlign='center'; c.textBaseline='middle';
+      c.shadowColor='rgba(0,0,0,.35)'; c.shadowBlur=fpx*.12; c.shadowOffsetY=fpx*.04;
+      c.fillStyle=t.color;
+      c.fillText(t.str,padL+t.x*iw,padT+t.y*ih);
+      c.shadowColor='transparent'; c.shadowBlur=0; c.shadowOffsetY=0;
+    });
+  }
+  return {cvs,imgRect:{x:padL,y:padT,w:iw,h:ih}};
+}
+function roundPath(c,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  c.beginPath();
+  c.moveTo(x+r,y);
+  c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r);
+  c.closePath();
+}
+
+let lastImgRect=null; // preview 내 이미지 영역(텍스트 좌표 변환용)
+function fitAndRender(showRaw=false){
+  if(!baseCanvas)return;
+  const stage=$('#stage');
+  const availW=stage.clientWidth-24, availH=stage.clientHeight-16;
+
+  const {cvs,imgRect}=renderScene(1,{raw:showRaw,noCropView:S.cropMode});
+  const fit=Math.min(availW/cvs.width,availH/cvs.height,1);
+  const dw=Math.max(1,Math.round(cvs.width*fit)), dh=Math.max(1,Math.round(cvs.height*fit));
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  preview.width=dw*dpr; preview.height=dh*dpr;
+  preview.style.width=dw+'px'; preview.style.height=dh+'px';
+  pctx.imageSmoothingQuality='high';
+  pctx.drawImage(cvs,0,0,dw*dpr,dh*dpr);
+  lastImgRect={x:imgRect.x*fit,y:imgRect.y*fit,w:imgRect.w*fit,h:imgRect.h*fit,fit};
+
+  // 선택 텍스트 표시
+  if(!showRaw&&!S.cropMode&&S.activeText!=null){
+    const t=S.texts.find(t=>t.id===S.activeText);
+    if(t){
+      const fpx=t.size/100*lastImgRect.w*dpr;
+      pctx.font=`700 ${fpx}px 'Pretendard Variable',Pretendard,sans-serif`;
+      const m=pctx.measureText(t.str);
+      const cx=(lastImgRect.x+t.x*lastImgRect.w)*dpr, cy=(lastImgRect.y+t.y*lastImgRect.h)*dpr;
+      pctx.strokeStyle='rgba(94,130,255,.95)'; pctx.lineWidth=2*dpr;
+      pctx.setLineDash([6*dpr,4*dpr]);
+      pctx.strokeRect(cx-m.width/2-8*dpr,cy-fpx*.62-6*dpr,m.width+16*dpr,fpx*1.24+12*dpr);
+      pctx.setLineDash([]);
+    }
+  }
+  if(S.cropMode) layoutCropUI();
+}
+window.addEventListener('resize',()=>{if(S.img)fitAndRender();});
+
+/* ═══════════════ 보정 슬라이더 ═══════════════ */
+function syncOutput(r){
+  const v=+r.value, k=r.dataset.adj;
+  const disp=(k==='bri'||k==='con'||k==='sat')?v-100:v;
+  r.nextElementSibling.textContent=disp>0&&k!=='vig'?'+'+disp:disp;
+}
+$$('#p-adjust input[type=range]').forEach(r=>{
+  r.addEventListener('input',()=>{
+    S.adj[r.dataset.adj]=+r.value; syncOutput(r); requestRender();
+  });
+});
+let rafId=null;
+function requestRender(){
+  if(rafId)return;
+  rafId=requestAnimationFrame(()=>{rafId=null;fitAndRender();});
+}
+
+/* ═══════════════ 필터 ═══════════════ */
+function buildFilterThumbs(){
+  const row=$('#filterRow'); row.innerHTML='';
+  // 썸네일용 축소 이미지
+  const th=document.createElement('canvas');
+  const s=Math.min(120/baseCanvas.width,120/baseCanvas.height,1);
+  th.width=Math.max(1,baseCanvas.width*s); th.height=Math.max(1,baseCanvas.height*s);
+  th.getContext('2d').drawImage(baseCanvas,0,0,th.width,th.height);
+
+  PRESETS.forEach(p=>{
+    const item=document.createElement('button');
+    item.className='f-item'+(p.id===S.preset?' sel':'');
+    const c=document.createElement('canvas');
+    c.width=116;c.height=116;
+    const cc=c.getContext('2d');
+    cc.filter=p.f||'none';
+    const sc=Math.max(116/th.width,116/th.height);
+    cc.drawImage(th,(116-th.width*sc)/2,(116-th.height*sc)/2,th.width*sc,th.height*sc);
+    cc.filter='none';
+    if(p.ov){
+      cc.globalCompositeOperation=p.ov.m;
+      cc.fillStyle=p.ov.c;
+      cc.fillRect(0,0,116,116);
+      cc.globalCompositeOperation='source-over';
+    }
+    const label=document.createElement('span'); label.textContent=p.name;
+    item.append(c,label);
+    item.addEventListener('click',()=>{
+      S.preset=p.id;
+      $$('#filterRow .f-item').forEach(el=>el.classList.remove('sel'));
+      item.classList.add('sel');
+      fitAndRender();
+    });
+    row.appendChild(item);
+  });
+}
+
+/* ═══════════════ 탭 전환 ═══════════════ */
+$$('#tabbar .tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    const id=tab.dataset.tab;
+    $$('#tabbar .tab').forEach(t=>t.classList.toggle('sel',t===tab));
+    $$('.tool-panel').forEach(p=>p.classList.toggle('on',p.id==='p-'+id));
+    if(id==='crop'){ enterCrop(); } else { if(S.cropMode)exitCropUI(); }
+    if(id!=='text'&&S.activeText!=null){S.activeText=null;fitAndRender();}
+  });
+});
+
+/* ═══════════════ 자르기 ═══════════════ */
+let cropRect=null; // 표시 px 기준 {x,y,w,h} (preview 요소 좌표계)
+function enterCrop(){ S.cropMode=true; $('#cropLayer').classList.add('on'); fitAndRender(); initCropBox(); }
+function exitCropUI(){ S.cropMode=false; $('#cropLayer').classList.remove('on'); }
+function cancelCrop(){ exitCropUI(); switchTab('adjust'); fitAndRender(); }
+function switchTab(id){ $$('#tabbar .tab').forEach(t=>{if(t.dataset.tab===id)t.click();}); }
+
+function initCropBox(){
+  // 현재 crop이 있으면 그 위치로, 없으면 전체 90%
+  const r=lastImgRect; if(!r)return;
+  if(S.crop){
+    cropRect={x:r.x+S.crop.x*r.fit, y:r.y+S.crop.y*r.fit, w:S.crop.w*r.fit, h:S.crop.h*r.fit};
+  }else{
+    cropRect={x:r.x+r.w*.05,y:r.y+r.h*.05,w:r.w*.9,h:r.h*.9};
+  }
+  layoutCropUI();
+}
+function layoutCropUI(){
+  if(!cropRect)return;
+  const b=$('#cropBox');
+  Object.assign(b.style,{left:cropRect.x+'px',top:cropRect.y+'px',width:cropRect.w+'px',height:cropRect.h+'px'});
+  const W=preview.clientWidth,H=preview.clientHeight;
+  Object.assign($('#shT').style,{left:'0px',top:'0px',width:W+'px',height:Math.max(0,cropRect.y)+'px'});
+  Object.assign($('#shB').style,{left:'0px',top:(cropRect.y+cropRect.h)+'px',width:W+'px',height:Math.max(0,H-cropRect.y-cropRect.h)+'px'});
+  Object.assign($('#shL').style,{left:'0px',top:cropRect.y+'px',width:Math.max(0,cropRect.x)+'px',height:cropRect.h+'px'});
+  Object.assign($('#shR').style,{left:(cropRect.x+cropRect.w)+'px',top:cropRect.y+'px',width:Math.max(0,W-cropRect.x-cropRect.w)+'px',height:cropRect.h+'px'});
+}
+// 비율 칩
+$$('#aspectRow .chip').forEach(ch=>{
+  ch.addEventListener('click',()=>{
+    $$('#aspectRow .chip').forEach(c=>c.classList.remove('sel'));
+    ch.classList.add('sel');
+    S.aspect=ch.dataset.asp;
+    if(S.aspect!=='free'&&cropRect&&lastImgRect){
+      const r=lastImgRect, asp=+S.aspect;
+      let w=cropRect.w,h=w/asp;
+      if(h>r.h*.95){h=r.h*.95;w=h*asp;}
+      if(w>r.w*.95){w=r.w*.95;h=w/asp;}
+      cropRect.x=Math.min(Math.max(cropRect.x,r.x),r.x+r.w-w);
+      cropRect.y=Math.min(Math.max(cropRect.y,r.y),r.y+r.h-h);
+      cropRect.w=w;cropRect.h=h;
+      layoutCropUI();
+    }
+  });
+});
+// 드래그/리사이즈
+(function(){
+  const layer=$('#cropLayer'), box=$('#cropBox');
+  let mode=null, start=null, orig=null;
+  const MIN=40;
+  function pt(e){const r=preview.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+  function clampBox(b){
+    const r=lastImgRect;
+    b.w=Math.min(b.w,r.w);b.h=Math.min(b.h,r.h);
+    b.x=Math.min(Math.max(b.x,r.x),r.x+r.w-b.w);
+    b.y=Math.min(Math.max(b.y,r.y),r.y+r.h-b.h);
+    return b;
+  }
+  layer.addEventListener('pointerdown',e=>{
+    if(!cropRect)return;
+    const h=e.target.dataset&&e.target.dataset.h;
+    const p=pt(e);
+    if(h){mode=h;}
+    else if(p.x>=cropRect.x&&p.x<=cropRect.x+cropRect.w&&p.y>=cropRect.y&&p.y<=cropRect.y+cropRect.h){mode='move';}
+    else return;
+    start=p; orig={...cropRect};
+    layer.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  layer.addEventListener('pointermove',e=>{
+    if(!mode)return;
+    const p=pt(e), dx=p.x-start.x, dy=p.y-start.y, r=lastImgRect;
+    let b={...orig};
+    const asp=S.aspect==='free'?null:+S.aspect;
+    if(mode==='move'){ b.x=orig.x+dx; b.y=orig.y+dy; }
+    else{
+      // 코너 리사이즈
+      let ax=orig.x, ay=orig.y, aw=orig.w, ah=orig.h;
+      if(mode.includes('l')){ax=orig.x+dx;aw=orig.w-dx;}
+      if(mode.includes('r')){aw=orig.w+dx;}
+      if(mode.includes('t')){ay=orig.y+dy;ah=orig.h-dy;}
+      if(mode.includes('b')){ah=orig.h+dy;}
+      if(aw<MIN){if(mode.includes('l'))ax=orig.x+orig.w-MIN;aw=MIN;}
+      if(ah<MIN){if(mode.includes('t'))ay=orig.y+orig.h-MIN;ah=MIN;}
+      if(asp){
+        ah=aw/asp;
+        if(mode.includes('t'))ay=orig.y+orig.h-ah;
+      }
+      b={x:ax,y:ay,w:aw,h:ah};
+      // 경계 초과 시 크기 축소
+      if(b.x<r.x){b.w-=r.x-b.x;b.x=r.x;if(asp){b.h=b.w/asp;if(mode.includes('t'))b.y=orig.y+orig.h-b.h;}}
+      if(b.y<r.y){b.h-=r.y-b.y;b.y=r.y;if(asp){b.w=b.h*asp;if(mode.includes('l'))b.x=orig.x+orig.w-b.w;}}
+      if(b.x+b.w>r.x+r.w){b.w=r.x+r.w-b.x;if(asp){b.h=b.w/asp;if(mode.includes('t'))b.y=orig.y+orig.h-b.h;}}
+      if(b.y+b.h>r.y+r.h){b.h=r.y+r.h-b.y;if(asp){b.w=b.h*asp;if(mode.includes('l'))b.x=orig.x+orig.w-b.w;}}
+      cropRect=b; layoutCropUI(); return;
+    }
+    cropRect=clampBox(b); layoutCropUI();
+  });
+  const up=e=>{if(mode){mode=null;}};
+  layer.addEventListener('pointerup',up);
+  layer.addEventListener('pointercancel',up);
+})();
+function applyCrop(){
+  if(!cropRect||!lastImgRect)return;
+  const r=lastImgRect, f=r.fit;
+  S.crop={
+    x:Math.max(0,Math.round((cropRect.x-r.x)/f)),
+    y:Math.max(0,Math.round((cropRect.y-r.y)/f)),
+    w:Math.min(baseCanvas.width,Math.round(cropRect.w/f)),
+    h:Math.min(baseCanvas.height,Math.round(cropRect.h/f)),
+  };
+  exitCropUI(); switchTab('adjust'); fitAndRender();
+  toast('자르기를 적용했어요');
+}
+
+/* ═══════════════ 텍스트 ═══════════════ */
+let tid=0;
+function addText(){
+  const v=$('#textInput').value.trim();
+  if(!v){toast('텍스트를 입력해주세요');return;}
+  const t={id:++tid,str:v,x:.5,y:.5,size:+$('#textSize').value,color:textColor};
+  S.texts.push(t); S.activeText=t.id;
+  $('#textInput').value='';
+  fitAndRender();
+}
+function deleteText(){
+  if(S.activeText==null){toast('삭제할 텍스트를 먼저 선택하세요');return;}
+  S.texts=S.texts.filter(t=>t.id!==S.activeText);
+  S.activeText=null; fitAndRender();
+}
+$('#textSize').addEventListener('input',e=>{
+  e.target.nextElementSibling.textContent=e.target.value;
+  const t=S.texts.find(t=>t.id===S.activeText);
+  if(t){t.size=+e.target.value;requestRender();}
+});
+// 색상 스와치
+(function(){
+  const w=$('#swatches');
+  COLORS.forEach((c,i)=>{
+    const b=document.createElement('button');
+    b.className='swatch'+(i===0?' sel':''); b.style.background=c;
+    b.addEventListener('click',()=>{
+      textColor=c;
+      $$('#swatches .swatch').forEach(s=>s.classList.remove('sel'));
+      b.classList.add('sel');
+      const t=S.texts.find(t=>t.id===S.activeText);
+      if(t){t.color=c;fitAndRender();}
+    });
+    w.appendChild(b);
+  });
+})();
+// 텍스트 드래그/선택
+(function(){
+  let dragging=null, off=null;
+  function hitTest(px,py){
+    const r=lastImgRect; if(!r)return null;
+    const c=document.createElement('canvas').getContext('2d');
+    for(let i=S.texts.length-1;i>=0;i--){
+      const t=S.texts[i], fpx=t.size/100*r.w;
+      c.font=`700 ${fpx}px Pretendard,sans-serif`;
+      const w=c.measureText(t.str).width;
+      const cx=r.x+t.x*r.w, cy=r.y+t.y*r.h;
+      if(px>=cx-w/2-14&&px<=cx+w/2+14&&py>=cy-fpx*.7-10&&py<=cy+fpx*.7+10)return t;
+    }
+    return null;
+  }
+  preview.addEventListener('pointerdown',e=>{
+    if(S.cropMode)return;
+    const rect=preview.getBoundingClientRect();
+    const px=e.clientX-rect.left, py=e.clientY-rect.top;
+    const t=hitTest(px,py);
+    if(t){
+      S.activeText=t.id; dragging=t;
+      off={dx:px-(lastImgRect.x+t.x*lastImgRect.w),dy:py-(lastImgRect.y+t.y*lastImgRect.h)};
+      $('#textSize').value=t.size;
+      $('#textSize').nextElementSibling.textContent=t.size;
+      preview.setPointerCapture(e.pointerId);
+      fitAndRender();
+    }else if(S.activeText!=null){
+      S.activeText=null; fitAndRender();
+    }
+  });
+  preview.addEventListener('pointermove',e=>{
+    if(!dragging)return;
+    const rect=preview.getBoundingClientRect();
+    const px=e.clientX-rect.left, py=e.clientY-rect.top, r=lastImgRect;
+    dragging.x=Math.min(1,Math.max(0,(px-off.dx-r.x)/r.w));
+    dragging.y=Math.min(1,Math.max(0,(py-off.dy-r.y)/r.h));
+    requestRender();
+  });
+  const up=()=>{dragging=null;};
+  preview.addEventListener('pointerup',up);
+  preview.addEventListener('pointercancel',up);
+})();
+
+/* ═══════════════ 액자 ═══════════════ */
+$$('#frameRow .chip').forEach(ch=>{
+  ch.addEventListener('click',()=>{
+    $$('#frameRow .chip').forEach(c=>c.classList.remove('sel'));
+    ch.classList.add('sel');
+    S.frame=ch.dataset.frame;
+    fitAndRender();
+  });
+});
+
+/* ═══════════════ 원본 비교 ═══════════════ */
+(function(){
+  const b=$('#cmpBtn');
+  const down=e=>{e.preventDefault();if(!S.img)return;$('#compareTag').style.display='block';fitAndRender(true);};
+  const upf=()=>{if(!S.img)return;$('#compareTag').style.display='none';fitAndRender(false);};
+  b.addEventListener('pointerdown',down);
+  b.addEventListener('pointerup',upf);
+  b.addEventListener('pointercancel',upf);
+  b.addEventListener('pointerleave',upf);
+})();
+
+/* ═══════════════ 저장 ═══════════════ */
+function openSheet(){
+  if(!S.img)return;
+  updateSaveInfo();
+  $('#sheet').classList.add('on');
+}
+function closeSheet(){$('#sheet').classList.remove('on');}
+$$('#fmtGroup .opt').forEach(o=>o.addEventListener('click',()=>{
+  $$('#fmtGroup .opt').forEach(x=>x.classList.remove('sel'));o.classList.add('sel');
+  S.fmt=o.dataset.fmt;updateSaveInfo();
+}));
+$$('#sizeGroup .opt').forEach(o=>o.addEventListener('click',()=>{
+  $$('#sizeGroup .opt').forEach(x=>x.classList.remove('sel'));o.classList.add('sel');
+  S.sizeScale=+o.dataset.size;updateSaveInfo();
+}));
+function updateSaveInfo(){
+  const cr=currentCrop();
+  const fs=frameSpec(cr.w*S.sizeScale,cr.h*S.sizeScale);
+  let w=Math.round(cr.w*S.sizeScale), h=Math.round(cr.h*S.sizeScale);
+  if(fs){w+=Math.round(fs.pad.l+fs.pad.r);h+=Math.round(fs.pad.t+fs.pad.b);}
+  $('#saveInfo').textContent=`출력 크기 약 ${w} × ${h}px · ${S.fmt==='jpeg'?'JPG 고화질(92%)':'PNG 무손실'}`;
+}
+function doSave(){
+  const {cvs}=renderScene(S.sizeScale);
+  const ext=S.fmt==='jpeg'?'jpg':'png';
+  cvs.toBlob(blob=>{
+    if(!blob){toast('저장에 실패했어요');return;}
+    const a=document.createElement('a');
+    const d=new Date(), pad=n=>String(n).padStart(2,'0');
+    a.download=`photolab_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.${ext}`;
+    a.href=URL.createObjectURL(blob);
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+    closeSheet();
+    toast('갤러리(다운로드)에 저장했어요');
+  },'image/'+S.fmt,S.fmt==='jpeg'?0.92:undefined);
+}
+
+/* ═══════════════ AI 보정 (Gemini 이미지 모델) ═══════════════ */
+const AI_PROMPTS=[
+  {id:'lowlight',name:'어두운 사진 살리기',prompt:
+`Correct the poor low-light exposure while preserving the person's real identity, skin texture, expression, pose, and image atmosphere.
+Brighten underexposed areas naturally while maintaining realistic shadows and contrast.
+Correct harsh flash shadows and remove unnatural color casts.
+Preserve realistic skin texture, hair detail, and background lighting.
+Do not create an AI-generated beauty look or artificial smoothing.
+The final image should look like a naturally well-exposed night photo captured with professional lighting.`},
+  {id:'upscale',name:'저화질 복구',prompt:
+`Ultra high-resolution restoration of the uploaded image while preserving the exact identity, pose, framing, composition, and lighting. Recover realistic facial details, hair strands, skin texture, clothing texture, and background detail naturally without hallucinating new features. Remove compression artifacts, blur, digital noise, and low-resolution softness while keeping the image photorealistic and true to the original.
+Maintain original colors and lighting direction exactly. No AI-generated look, no beauty filter, no over-sharpening, no fake details. Professional realistic 4K enhancement with natural texture preservation.`},
+  {id:'skin',name:'피부 보정',prompt:
+`Professional natural skin retouching while fully preserving the person's real identity and facial structure.
+Remove temporary acne, pimples, redness, skin irritation, blackheads, and uneven skin texture while keeping realistic pores and natural skin detail intact.
+Preserve natural skin tone, facial shadows, beard texture, eyebrows, eyelashes, and hair exactly as they are. Avoid plastic skin, beauty filter effects, over-smoothing, or artificial glow.
+Maintain realistic lighting and original image composition.
+The result should look like a professionally retouched DSLR portrait with invisible editing and natural healthy skin texture. Ultra realistic, photorealistic, high detail.`},
+  {id:'restore',name:'오래된 사진 복원',prompt:
+`Restore and repair the old damaged photograph while preserving the person's real facial identity and historical authenticity.
+Repair scratches, folds, tears, fading, blur, stains, and damaged areas naturally.
+Enhance facial details, clothing texture, and image clarity while maintaining realistic vintage photographic texture.
+If appropriate, restore natural realistic color while respecting the original era and lighting.
+Preserve the nostalgic atmosphere and authentic photographic character.
+Photorealistic restoration with subtle high-resolution enhancement.`},
+  {id:'eyes',name:'눈 감은 사진 복구',prompt:
+`Open the closed eyes naturally while fully preserving the person's facial identity, expression, head position, lighting, and image composition.
+Match realistic eye shape, gaze direction, eyelid position, skin texture, and lighting naturally.
+Do not alter any other part of the face or image.
+The result should look like the original photo was captured with the eyes naturally open in the same moment. Photorealistic and seamless correction only.`},
+  {id:'sunlight',name:'감성 햇살 추가',prompt:
+`Add realistic warm golden hour sunlight to the photo while fully preserving the person's identity, pose, facial structure, hair, and composition.
+Create soft cinematic sunlight from the side with realistic warm highlights, gentle shadows, glowing skin tones, and subtle backlit hair strands.
+Maintain natural skin texture and realistic lighting behavior.
+Do not alter facial features or background structure.
+The result should feel like a naturally captured sunset portrait with cinematic Instagram aesthetics.`},
+  {id:'crowd',name:'배경 사람 제거',prompt:
+`Remove all unwanted people from the background while perfectly preserving the main subject, clothing, facial features, pose, and lighting.
+Reconstruct the background naturally where the removed people were located.
+Match realistic perspective, lighting direction, shadows, textures, architecture, and depth.
+Do not crop or stylize the image.
+The result should look like the original photo was taken without people in the background.`},
+  {id:'angle',name:'망한 각도 수정',prompt:
+`Subtly correct the unflattering low camera angle while fully preserving the person's identity, facial structure, hairstyle, pose, and expression.
+Reduce the appearance of double chin or jaw compression caused by perspective distortion only.
+Simulate a slightly higher and more flattering eye-level camera angle naturally without changing the person's real facial anatomy. Preserve realistic shadows, neck proportions, and facial texture.
+No face slimming, no beauty filter, no plastic skin, no AI look.
+The result should feel like the same real photo captured from a slightly better angle.`},
+];
+let aiPrev=null, aiBusy=false;
+
+// AI 칩 생성
+(function(){
+  const row=$('#aiRow');
+  AI_PROMPTS.forEach(p=>{
+    const b=document.createElement('button');
+    b.className='chip';
+    b.innerHTML=`<span class="spark">✦</span>${p.name}`;
+    b.addEventListener('click',()=>runAI(p));
+    row.appendChild(b);
+  });
+})();
+
+function store(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function read(k){try{return localStorage.getItem(k)||'';}catch(e){return '';}}
+function openAISettings(){
+  $('#aiKeyInput').value=read('photolab_gemini_key');
+  const m=read('photolab_gemini_model'); if(m)$('#aiModelInput').value=m;
+  $('#aiSheet').classList.add('on');
+}
+function closeAISettings(){$('#aiSheet').classList.remove('on');}
+function saveAISettings(){
+  store('photolab_gemini_key',$('#aiKeyInput').value.trim());
+  store('photolab_gemini_model',$('#aiModelInput').value.trim()||'gemini-3.1-flash-image');
+  closeAISettings(); toast('저장했어요');
+}
+function showLoading(msg){$('#loadingMsg').textContent=msg;$('#loading').classList.add('on');}
+function hideLoading(){$('#loading').classList.remove('on');}
+
+function loadB64Image(b64,mime){
+  return new Promise((res,rej)=>{
+    const i=new Image();
+    i.onload=()=>res(i); i.onerror=()=>rej(new Error('이미지 해석 실패'));
+    i.src=`data:${mime};base64,${b64}`;
+  });
+}
+
+async function runAI(p){
+  if(!S.img||aiBusy)return;
+  const key=read('photolab_gemini_key');
+  if(!key){openAISettings();toast('먼저 API 키를 입력해주세요');return;}
+
+  // 현재 회전/자르기까지 반영된 원색 이미지 전송 (색보정은 AI가 수행)
+  const cr=currentCrop();
+  const maxSide=1280, sc=Math.min(1,maxSide/Math.max(cr.w,cr.h));
+  const c=document.createElement('canvas');
+  c.width=Math.max(1,Math.round(cr.w*sc)); c.height=Math.max(1,Math.round(cr.h*sc));
+  c.getContext('2d').drawImage(baseCanvas,cr.x,cr.y,cr.w,cr.h,0,0,c.width,c.height);
+  const b64=c.toDataURL('image/jpeg',0.92).split(',')[1];
+
+  aiBusy=true; showLoading(p.name+' 적용 중…');
+  try{
+    // 모델 자동 폴백: 저장된 모델 → 최신순 후보를 404 시 순차 시도
+    const CANDIDATES=['gemini-3.1-flash-image','gemini-2.5-flash-image','gemini-3-pro-image-preview','gemini-2.5-flash-image-preview'];
+    const saved=read('photolab_gemini_model');
+    const tryList=[...new Set([saved,...CANDIDATES].filter(Boolean))];
+    let data=null,usedModel=null,lastErr=null;
+    for(const model of tryList){
+      const res=await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+        {method:'POST',
+         headers:{'Content-Type':'application/json','X-goog-api-key':key},
+         body:JSON.stringify({contents:[{parts:[
+           {inline_data:{mime_type:'image/jpeg',data:b64}},
+           {text:p.prompt}
+         ]}]})}
+      );
+      if(res.status===404){lastErr='사용 가능한 이미지 모델 없음';continue;} // 다음 모델 시도
+      if(!res.ok){
+        lastErr=res.status===400||res.status===403?'API 키를 확인해주세요':
+                res.status===429?'요청 한도 초과 — 잠시 후 다시 시도':'오류 '+res.status;
+        break;
+      }
+      data=await res.json(); usedModel=model; break;
+    }
+    if(!data)throw new Error(lastErr||'요청 실패');
+    if(usedModel&&usedModel!==saved)store('photolab_gemini_model',usedModel); // 성공 모델 기억
+    const parts=(data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts)||[];
+    const ip=parts.find(x=>x.inlineData||x.inline_data);
+    if(!ip)throw new Error('이미지가 반환되지 않았어요');
+    const inl=ip.inlineData||ip.inline_data;
+    const img=await loadB64Image(inl.data,inl.mimeType||inl.mime_type||'image/png');
+
+    aiPrev={img:S.img,rot:S.rot,flipH:S.flipH,flipV:S.flipV,crop:S.crop};
+    S.img=img; S.rot=0;S.flipH=false;S.flipV=false;S.crop=null;
+    rebuildBase(); buildFilterThumbs(); fitAndRender();
+    toast(p.name+' 완료 ✦');
+  }catch(err){
+    toast('AI 보정 실패: '+(err&&err.message||'네트워크 오류'));
+  }
+  aiBusy=false; hideLoading();
+}
+function undoAI(){
+  if(!aiPrev){toast('되돌릴 AI 보정이 없어요');return;}
+  S.img=aiPrev.img; S.rot=aiPrev.rot; S.flipH=aiPrev.flipH; S.flipV=aiPrev.flipV; S.crop=aiPrev.crop;
+  aiPrev=null;
+  rebuildBase(); buildFilterThumbs(); fitAndRender();
+  toast('AI 보정 이전으로 되돌렸어요');
+}
+
+/* ═══════════════ 구도 가이드 카메라 ═══════════════ */
+const GUIDES=[
+  {id:'thirds',name:'3분할',tip:'교차점에 피사체를 두면 안정적인 구도가 돼요',
+   svg:`<line x1="33.3" y1="0" x2="33.3" y2="100"/><line x1="66.6" y1="0" x2="66.6" y2="100"/>
+        <line x1="0" y1="33.3" x2="100" y2="33.3"/><line x1="0" y1="66.6" x2="100" y2="66.6"/>
+        <circle cx="33.3" cy="33.3" r="1.4"/><circle cx="66.6" cy="33.3" r="1.4"/>
+        <circle cx="33.3" cy="66.6" r="1.4"/><circle cx="66.6" cy="66.6" r="1.4"/>`},
+  {id:'golden',name:'황금비',tip:'황금비 라인에 시선이 머무는 요소를 배치해보세요',
+   svg:`<line x1="38.2" y1="0" x2="38.2" y2="100"/><line x1="61.8" y1="0" x2="61.8" y2="100"/>
+        <line x1="0" y1="38.2" x2="100" y2="38.2"/><line x1="0" y1="61.8" x2="100" y2="61.8"/>`},
+  {id:'center',name:'중앙',tip:'대칭적인 피사체는 정중앙 배치가 힘이 있어요',
+   svg:`<line x1="50" y1="0" x2="50" y2="100"/><line x1="0" y1="50" x2="100" y2="50"/>
+        <rect x="35" y="35" width="30" height="30"/>`},
+  {id:'diagonal',name:'대각선',tip:'대각선을 따라 흐름을 만들면 역동적인 사진이 돼요',
+   svg:`<line x1="0" y1="0" x2="100" y2="100"/><line x1="100" y1="0" x2="0" y2="100"/>`},
+  {id:'triangle',name:'삼각형',tip:'대각선과 수직선이 만나는 지점에 포인트를 두세요',
+   svg:`<line x1="0" y1="100" x2="100" y2="0"/><line x1="0" y1="0" x2="50" y2="50"/><line x1="100" y1="100" x2="50" y2="50"/>`},
+  {id:'horizon',name:'수평선',tip:'수평선은 상단 1/3 또는 하단 1/3에 맞춰보세요',
+   svg:`<line x1="0" y1="33.3" x2="100" y2="33.3"/><line x1="0" y1="66.6" x2="100" y2="66.6"/>
+        <line x1="46" y1="50" x2="54" y2="50"/><line x1="50" y1="46" x2="50" y2="54"/>`},
+  {id:'frame',name:'프레임',tip:'안쪽 프레임에 주제를 담고 여백을 살려보세요',
+   svg:`<rect x="10" y="10" width="80" height="80"/><rect x="25" y="25" width="50" height="50" stroke-dasharray="2 2"/>`},
+  {id:'symmetry',name:'대칭',tip:'중앙선을 기준으로 좌우 균형을 맞춰보세요',
+   svg:`<line x1="50" y1="0" x2="50" y2="100"/>
+        <line x1="20" y1="0" x2="20" y2="100" stroke-dasharray="2 2"/><line x1="80" y1="0" x2="80" y2="100" stroke-dasharray="2 2"/>`},
+];
+let camStream=null, camFacing='environment', guideDim=false;
+
+// 가이드 칩 생성
+(function(){
+  const row=$('#guideRow');
+  GUIDES.forEach((g,i)=>{
+    const b=document.createElement('button');
+    b.className='chip'+(i===0?' sel':''); b.textContent=g.name;
+    b.addEventListener('click',()=>{
+      $$('#guideRow .chip').forEach(c=>c.classList.remove('sel'));
+      b.classList.add('sel');
+      setGuide(g);
+    });
+    row.appendChild(b);
+  });
+})();
+function setGuide(g){
+  $('#camGuide').innerHTML=g.svg;
+  $('#camGuideName').textContent=g.name+' 구도';
+  $('#camTip').textContent=g.tip;
+}
+function toggleGuideDim(){
+  guideDim=!guideDim;
+  $('#camGuide').classList.toggle('dim',guideDim);
+  $('#guideDimBtn').textContent=guideDim?'가이드 OFF':'가이드 ON';
+}
+async function openCamera(){
+  // HTTPS가 아니거나 카메라 API 미지원 → 기본 카메라 폴백
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||
+     (location.protocol!=='https:'&&location.hostname!=='localhost')){
+    toast('이 환경에선 기본 카메라로 촬영해요 (구도 가이드는 HTTPS 필요)');
+    pickImage(true); return;
+  }
+  try{
+    await startCameraStream();
+    $('#camScreen').classList.add('on');
+    setGuide(GUIDES[0]);
+  }catch(err){
+    toast('카메라 권한을 확인해주세요 — 기본 카메라로 전환');
+    pickImage(true);
+  }
+}
+async function startCameraStream(){
+  stopCameraStream();
+  camStream=await navigator.mediaDevices.getUserMedia({
+    video:{facingMode:camFacing,width:{ideal:2560},height:{ideal:1920}},audio:false
+  });
+  const v=$('#camVideo');
+  v.srcObject=camStream;
+  v.classList.toggle('mirror',camFacing==='user');
+  await v.play().catch(()=>{});
+}
+function stopCameraStream(){
+  if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
+}
+async function switchCamera(){
+  camFacing=camFacing==='environment'?'user':'environment';
+  try{await startCameraStream();}catch(e){toast('카메라 전환 실패');}
+}
+function closeCamera(){
+  stopCameraStream();
+  $('#camScreen').classList.remove('on');
+}
+async function capturePhoto(){
+  const v=$('#camVideo');
+  if(!camStream||!v.videoWidth){toast('카메라 준비 중이에요');return;}
+  const c=document.createElement('canvas');
+  c.width=v.videoWidth; c.height=v.videoHeight;
+  const cc=c.getContext('2d');
+  if(camFacing==='user'){ cc.translate(c.width,0); cc.scale(-1,1); } // 미리보기와 동일하게
+  cc.drawImage(v,0,0);
+  const img=await new Promise((res,rej)=>{
+    if(window.createImageBitmap){createImageBitmap(c).then(res).catch(rej);}
+    else{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=c.toDataURL('image/jpeg',0.95);}
+  }).catch(()=>null);
+  if(!img){toast('촬영에 실패했어요');return;}
+  enterEditor(img);
+  toast('촬영 완료 — 필터로 완성해보세요');
+}
+
+/* ═══════════════ 토스트 ═══════════════ */
+let toastTimer=null;
+function toast(msg){
+  const t=$('#toast'); t.textContent=msg; t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('on'),2200);
+}
+</script>
+</body>
+</html>
