@@ -402,6 +402,8 @@
       <div class="slider-row"><label>온도</label><input type="range" min="-50" max="50" value="0" data-adj="temp"><output>0</output></div>
       <div class="slider-row"><label>구조</label><input type="range" min="0" max="100" value="0" data-adj="struct"><output>0</output></div>
       <div class="slider-row"><label>디헤이즈</label><input type="range" min="0" max="100" value="0" data-adj="dehaze"><output>0</output></div>
+      <div class="slider-row"><label>페이드</label><input type="range" min="0" max="100" value="0" data-adj="fade"><output>0</output></div>
+      <div class="slider-row"><label>그레인</label><input type="range" min="0" max="100" value="0" data-adj="grain"><output>0</output></div>
       <div class="slider-row"><label>비네트</label><input type="range" min="0" max="100" value="0" data-adj="vig"><output>0</output></div>
     </div>
 
@@ -589,7 +591,7 @@ const S = {
   img:null,            // 원본 ImageBitmap/Image
   rot:0, flipH:false, flipV:false,
   crop:null,           // {x,y,w,h} base(회전 적용) 좌표
-  adj:{bri:100,con:100,sat:100,temp:0,struct:0,dehaze:0,vig:0},
+  adj:{bri:100,con:100,sat:100,temp:0,struct:0,dehaze:0,fade:0,grain:0,vig:0},
   preset:'none',
   texts:[],            // {id,str,x,y(0~1),size(%),color}
   activeText:null,
@@ -616,6 +618,23 @@ const PRESETS=[
     exposure:0.13, contrast:-29, highlights:-55, shadows:30, whites:-28, blacks:-44,
     temp:9, tint:3, vibrance:9, saturation:-10, texture:30, grain:16,
     curve:[[0,8],[64,66],[128,130],[192,196],[255,250]]}},
+  // ─ VSCO 필름 감성 ─
+  {id:'vsco_a6', name:'A6',    camF:'brightness(104%) contrast(90%) saturate(92%)',lr:{
+    exposure:0.1, contrast:-10, highlights:-18, shadows:22, whites:-8, blacks:8,
+    temp:4, tint:6, vibrance:6, saturation:-8, texture:0, grain:8,
+    curve:[[0,12],[64,72],[128,132],[192,192],[255,246]]}},
+  {id:'vsco_m5', name:'M5',    camF:'brightness(103%) contrast(92%) saturate(84%)',lr:{
+    exposure:0.05, contrast:-14, highlights:-20, shadows:26, whites:-6, blacks:6,
+    temp:-3, tint:8, vibrance:4, saturation:-14, texture:0, grain:6,
+    curve:[[0,14],[64,70],[128,128],[192,190],[255,244]]}},
+  {id:'vsco_c1', name:'C1',    camF:'brightness(105%) contrast(96%) saturate(104%)',lr:{
+    exposure:0.12, contrast:-6, highlights:-14, shadows:18, whites:-4, blacks:-2,
+    temp:2, tint:4, vibrance:12, saturation:2, texture:0, grain:4,
+    curve:[[0,6],[64,66],[128,134],[192,198],[255,252]]}},
+  {id:'vsco_av8',name:'AV8',   camF:'brightness(104%) contrast(88%) saturate(90%) sepia(8%)',lr:{
+    exposure:0.08, contrast:-18, highlights:-24, shadows:28, whites:-12, blacks:10,
+    temp:10, tint:4, vibrance:5, saturation:-10, texture:0, grain:12,
+    curve:[[0,18],[64,74],[128,130],[192,188],[255,240]]}},
   // ─ 아이폰 감성 ─
   {id:'ip_nat', name:'아이폰', f:'brightness(106%) contrast(95%) saturate(103%)',
    ov:{c:'rgba(255,255,255,.06)',m:'soft-light'}},
@@ -675,7 +694,7 @@ function enterEditor(img){
 
 function resetEdits(){
   S.rot=0;S.flipH=false;S.flipV=false;S.crop=null;
-  S.adj={bri:100,con:100,sat:100,temp:0,struct:0,dehaze:0,vig:0};
+  S.adj={bri:100,con:100,sat:100,temp:0,struct:0,dehaze:0,fade:0,grain:0,vig:0};
   S.preset='none';S.texts=[];S.activeText=null;S.frame='none';
   $$('#p-adjust input[type=range]').forEach(r=>{
     r.value=r.dataset.adj==='bri'||r.dataset.adj==='con'||r.dataset.adj==='sat'?100:0;
@@ -868,6 +887,21 @@ function boxBlur(lum,w,h,r){
   return out;
 }
 
+/* ── 그레인 (VSCO 필름 입자) ── */
+function applyGrain(ctx,x,y,w,h,amount){
+  if(w<=0||h<=0)return;
+  const id=ctx.getImageData(x,y,w,h), d=id.data;
+  const amt=amount/100*36; // 최대 노이즈 진폭
+  for(let i=0;i<d.length;i+=4){
+    // 밝기에 따라 그레인 강도 조절(중간톤에 더 잘 보이게)
+    const lum=(d[i]+d[i+1]+d[i+2])/3/255;
+    const w2=1-Math.abs(lum-0.5)*1.2;
+    const n=(Math.random()-0.5)*amt*Math.max(0.35,w2);
+    d[i]+=n; d[i+1]+=n; d[i+2]+=n;
+  }
+  ctx.putImageData(id,x,y);
+}
+
 function adjFilterString(){
   const a=S.adj;
   const p=PRESETS.find(p=>p.id===S.preset)?.f||'';
@@ -939,6 +973,18 @@ function renderScene(scale,opts={}){
       g.addColorStop(0,'rgba(0,0,0,0)');
       g.addColorStop(1,`rgba(0,0,0,${S.adj.vig/100*.75})`);
       c.fillStyle=g; c.fillRect(padL,padT,iw,ih);
+    }
+    // 페이드 (VSCO — 섀도우를 띄운 몽환적 필름룩)
+    if(S.adj.fade>0){
+      const f=S.adj.fade/100;
+      c.globalCompositeOperation='lighten';
+      c.fillStyle=`rgba(238,236,230,${f*0.22})`; // 밝은 회백을 lighten → 검정만 뜸
+      c.fillRect(padL,padT,iw,ih);
+      c.globalCompositeOperation='source-over';
+    }
+    // 그레인 (VSCO — 필름 입자)
+    if(S.adj.grain>0){
+      applyGrain(c,padL,padT,iw,ih,S.adj.grain);
     }
   }
   c.restore();
@@ -1504,7 +1550,7 @@ let camZoom=1, camZoomTrack=null, camZoomCaps=null; // 하드웨어 줌 지원 �
 let camFilter='none'; // 카메라 실시간 필터 (PRESETS의 id)
 
 // 카메라 필터 칩 생성 (원본 + 아이폰 감성 6종 + 대표 기본)
-const CAM_FILTER_IDS=['none','lr_food','lr_skin','lr_film','ip_nat','ip_gold','ip_cool','ip_mute','ip_soft','ip_cine','film','warm','cool','vivid','mono'];
+const CAM_FILTER_IDS=['none','lr_food','lr_skin','lr_film','vsco_a6','vsco_m5','vsco_c1','vsco_av8','ip_nat','ip_gold','ip_cool','ip_mute','ip_soft','ip_cine','film','warm','cool','vivid','mono'];
 (function(){
   const row=$('#camFilterRow');
   CAM_FILTER_IDS.forEach((id,i)=>{
