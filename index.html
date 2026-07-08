@@ -602,9 +602,9 @@ const preview=$('#preview'), pctx=preview.getContext('2d');
 const PRESETS=[
   {id:'none',   name:'원본',   f:''},
   // ─ 라이트룸 프리셋 (픽셀 연산) ─
-  {id:'lr_food', name:'음식',  camF:'brightness(112%) contrast(94%) saturate(116%)',lr:{
-    exposure:0.55, contrast:-12, highlights:-15, shadows:26, whites:0, blacks:0,
-    temp:8, tint:5, vibrance:20, saturation:17, texture:10, grain:0,
+  {id:'lr_food', name:'음식',  camF:'brightness(104%) contrast(96%) saturate(114%)',lr:{
+    exposure:0.12, contrast:-12, highlights:-30, shadows:26, whites:-10, blacks:0,
+    temp:8, tint:5, vibrance:20, saturation:14, texture:10, grain:0,
     curve:[[0,0],[64,66],[128,132],[192,196],[255,255]]}},
   {id:'lr_skin', name:'피부톤',camF:'brightness(104%) contrast(96%) saturate(106%)',lr:{
     exposure:0.11, contrast:-14, highlights:-25, shadows:37, whites:7, blacks:-17,
@@ -759,10 +759,10 @@ function buildLrLut(p){
     v*=expF;                                   // 노출
     v=(v-0.5)*(1+cc*0.7)+0.5;                   // 대비 (완만)
     // 하이라이트: 밝은 영역, 섀도우: 어두운 영역에 국소 적용
-    v+=hl*0.28*bell(v,0.78,0.30);
+    v+=hl*0.28*bell(v,0.72,0.34);
     v+=sh*0.28*bell(v,0.28,0.30);
     // 화이트: 최상단, 블랙: 최하단 (더 좁은 영역)
-    v+=wh*0.22*bell(v,0.92,0.22);
+    v+=wh*0.30*bell(v,0.88,0.26);
     v+=bk*0.22*bell(v,0.10,0.22);
     v=Math.min(1,Math.max(0,v));
     // 톤커브
