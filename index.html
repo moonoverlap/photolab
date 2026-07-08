@@ -602,18 +602,18 @@ const preview=$('#preview'), pctx=preview.getContext('2d');
 const PRESETS=[
   {id:'none',   name:'원본',   f:''},
   // ─ 라이트룸 프리셋 (픽셀 연산) ─
-  {id:'lr_insta',name:'인스타',camF:'brightness(122%) contrast(90%) saturate(108%)',lr:{
-    exposure:1.37, contrast:-16, highlights:-78, shadows:37, whites:-21, blacks:14,
+  {id:'lr_insta',name:'인스타',camF:'brightness(116%) contrast(94%) saturate(108%)',lr:{
+    exposure:1.1, contrast:-16, highlights:-78, shadows:37, whites:-21, blacks:14,
     temp:4, tint:11, vibrance:15, saturation:-1, texture:0, grain:0,
-    curve:[[0,18],[64,84],[128,150],[192,214],[255,255]]}},
-  {id:'lr_skin', name:'피부톤',camF:'brightness(106%) contrast(94%) saturate(106%)',lr:{
+    curve:[[0,0],[64,68],[128,134],[192,198],[255,255]]}},
+  {id:'lr_skin', name:'피부톤',camF:'brightness(104%) contrast(96%) saturate(106%)',lr:{
     exposure:0.11, contrast:-14, highlights:-25, shadows:37, whites:7, blacks:-17,
     temp:6, tint:8, vibrance:21, saturation:-8, texture:-13, grain:0,
-    curve:[[0,10],[64,78],[128,142],[192,208],[255,254]]}},
-  {id:'lr_film', name:'필름',  camF:'brightness(108%) contrast(90%) saturate(96%) sepia(6%)',lr:{
+    curve:[[0,0],[64,66],[128,132],[192,196],[255,255]]}},
+  {id:'lr_film', name:'필름',  camF:'brightness(104%) contrast(92%) saturate(96%) sepia(5%)',lr:{
     exposure:0.13, contrast:-29, highlights:-55, shadows:30, whites:-28, blacks:-44,
     temp:9, tint:3, vibrance:9, saturation:-10, texture:30, grain:16,
-    curve:[[0,14],[64,74],[128,140],[192,206],[255,252]]}},
+    curve:[[0,8],[64,66],[128,130],[192,196],[255,250]]}},
   // ─ 아이폰 감성 ─
   {id:'ip_nat', name:'아이폰', f:'brightness(106%) contrast(95%) saturate(103%)',
    ov:{c:'rgba(255,255,255,.06)',m:'soft-light'}},
@@ -749,21 +749,22 @@ function buildLrLut(p){
     }
     return x<=cv[0][0]?cv[0][1]:cv[cv.length-1][1];
   };
-  const expF=Math.pow(2,(p.exposure||0)*0.6); // 노출(스톱 근사)
+  const expF=Math.pow(2,(p.exposure||0)*0.55); // 노출(스톱 근사)
+  const cc=(p.contrast||0)/100;
+  const hl=(p.highlights||0)/100, sh=(p.shadows||0)/100;
+  const wh=(p.whites||0)/100, bk=(p.blacks||0)/100;
+  // 특정 밝기대에만 작용하는 종형 마스크 (라이트룸의 국소 톤 조절 근사)
+  const bell=(v,center,width)=>Math.exp(-Math.pow((v-center)/width,2));
   for(let i=0;i<256;i++){
     let v=i/255;
     v*=expF;                                   // 노출
-    // 대비 (중앙 0.5 기준)
-    const cc=(p.contrast||0)/100;
-    v=(v-0.5)*(1+cc)+0.5;
-    // 하이라이트/섀도우 (밝기 가중 마스크)
-    const hl=(p.highlights||0)/100, sh=(p.shadows||0)/100;
-    v+=hl*0.5*Math.pow(Math.max(0,v),1.5);
-    v+=sh*0.5*Math.pow(Math.max(0,1-v),1.5);
-    // 화이트/블랙
-    const wh=(p.whites||0)/100, bk=(p.blacks||0)/100;
-    v+=wh*0.35*Math.pow(Math.max(0,v),2.2);
-    v+=bk*0.35*Math.pow(Math.max(0,1-v),2.2);
+    v=(v-0.5)*(1+cc*0.7)+0.5;                   // 대비 (완만)
+    // 하이라이트: 밝은 영역, 섀도우: 어두운 영역에 국소 적용
+    v+=hl*0.28*bell(v,0.78,0.30);
+    v+=sh*0.28*bell(v,0.28,0.30);
+    // 화이트: 최상단, 블랙: 최하단 (더 좁은 영역)
+    v+=wh*0.22*bell(v,0.92,0.22);
+    v+=bk*0.22*bell(v,0.10,0.22);
     v=Math.min(1,Math.max(0,v));
     // 톤커브
     v=curveAt(v*255)/255;
