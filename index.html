@@ -400,6 +400,8 @@
       <div class="slider-row"><label>대비</label><input type="range" min="50" max="150" value="100" data-adj="con"><output>0</output></div>
       <div class="slider-row"><label>채도</label><input type="range" min="0" max="200" value="100" data-adj="sat"><output>0</output></div>
       <div class="slider-row"><label>온도</label><input type="range" min="-50" max="50" value="0" data-adj="temp"><output>0</output></div>
+      <div class="slider-row"><label>구조</label><input type="range" min="0" max="100" value="0" data-adj="struct"><output>0</output></div>
+      <div class="slider-row"><label>디헤이즈</label><input type="range" min="0" max="100" value="0" data-adj="dehaze"><output>0</output></div>
       <div class="slider-row"><label>비네트</label><input type="range" min="0" max="100" value="0" data-adj="vig"><output>0</output></div>
     </div>
 
@@ -587,7 +589,7 @@ const S = {
   img:null,            // 원본 ImageBitmap/Image
   rot:0, flipH:false, flipV:false,
   crop:null,           // {x,y,w,h} base(회전 적용) 좌표
-  adj:{bri:100,con:100,sat:100,temp:0,vig:0},
+  adj:{bri:100,con:100,sat:100,temp:0,struct:0,dehaze:0,vig:0},
   preset:'none',
   texts:[],            // {id,str,x,y(0~1),size(%),color}
   activeText:null,
@@ -673,7 +675,7 @@ function enterEditor(img){
 
 function resetEdits(){
   S.rot=0;S.flipH=false;S.flipV=false;S.crop=null;
-  S.adj={bri:100,con:100,sat:100,temp:0,vig:0};
+  S.adj={bri:100,con:100,sat:100,temp:0,struct:0,dehaze:0,vig:0};
   S.preset='none';S.texts=[];S.activeText=null;S.frame='none';
   $$('#p-adjust input[type=range]').forEach(r=>{
     r.value=r.dataset.adj==='bri'||r.dataset.adj==='con'||r.dataset.adj==='sat'?100:0;
@@ -804,6 +806,68 @@ function applyLrPixels(ctx,x,y,w,h,p){
   ctx.putImageData(id,x,y);
 }
 
+/* ── 구조(로컬 대비) + 디헤이즈 (Snapseed 스타일) ── */
+function applyStructDehaze(ctx,x,y,w,h,structAmt,dehazeAmt){
+  if(w<=0||h<=0)return;
+  const src=ctx.getImageData(x,y,w,h);
+  const d=src.data, n=w*h;
+  // 휘도 맵
+  const lum=new Float32Array(n);
+  for(let i=0,j=0;i<d.length;i+=4,j++) lum[j]=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+  // 박스 블러(반경 r)로 로컬 평균 → 언샤프 마스크
+  const struct=structAmt/100, dehaze=dehazeAmt/100;
+  let blur=null;
+  if(struct>0){
+    const r=Math.max(1,Math.round(Math.min(w,h)*0.012));
+    blur=boxBlur(lum,w,h,r);
+  }
+  // 디헤이즈용 최소값(다크채널 근사) — 전역 블랙포인트 추정
+  let minV=255;
+  if(dehaze>0){ for(let j=0;j<n;j++) if(lum[j]<minV) minV=lum[j]; }
+  const bp=minV*dehaze*0.8; // 끌어올릴 블랙포인트
+  for(let i=0,j=0;i<d.length;i+=4,j++){
+    let r=d[i],g=d[i+1],b=d[i+2];
+    // 구조: (원휘도-블러휘도)를 각 채널에 가산 → 로컬 대비/질감 강조
+    if(struct>0&&blur){
+      const detail=(lum[j]-blur[j])*struct*1.6;
+      r+=detail; g+=detail; b+=detail;
+    }
+    // 디헤이즈: 블랙포인트 스트레치 + 채도 보강
+    if(dehaze>0){
+      const stretch=255/(255-bp);
+      r=(r-bp)*stretch; g=(g-bp)*stretch; b=(b-bp)*stretch;
+      const avg=(r+g+b)/3, sBoost=1+dehaze*0.35;
+      r=avg+(r-avg)*sBoost; g=avg+(g-avg)*sBoost; b=avg+(b-avg)*sBoost;
+    }
+    d[i]=r; d[i+1]=g; d[i+2]=b;
+  }
+  ctx.putImageData(src,x,y);
+}
+// 분리형 박스 블러 (수평→수직)
+function boxBlur(lum,w,h,r){
+  const tmp=new Float32Array(w*h), out=new Float32Array(w*h);
+  const win=2*r+1;
+  for(let y=0;y<h;y++){
+    let sum=0; const off=y*w;
+    for(let k=-r;k<=r;k++) sum+=lum[off+Math.min(w-1,Math.max(0,k))];
+    for(let x=0;x<w;x++){
+      tmp[off+x]=sum/win;
+      const add=off+Math.min(w-1,x+r+1), sub=off+Math.max(0,x-r);
+      sum+=lum[add]-lum[sub];
+    }
+  }
+  for(let x=0;x<w;x++){
+    let sum=0;
+    for(let k=-r;k<=r;k++) sum+=tmp[Math.min(h-1,Math.max(0,k))*w+x];
+    for(let y=0;y<h;y++){
+      out[y*w+x]=sum/win;
+      const add=Math.min(h-1,y+r+1)*w+x, sub=Math.max(0,y-r)*w+x;
+      sum+=tmp[add]-tmp[sub];
+    }
+  }
+  return out;
+}
+
 function adjFilterString(){
   const a=S.adj;
   const p=PRESETS.find(p=>p.id===S.preset)?.f||'';
@@ -843,6 +907,10 @@ function renderScene(scale,opts={}){
     const lrp=PRESETS.find(x=>x.id===S.preset);
     if(lrp&&lrp.lr){
       try{ applyLrPixels(c,padL,padT,iw,ih,lrp.lr); }catch(e){}
+    }
+    // 구조(로컬 대비) / 디헤이즈 (Snapseed 스타일)
+    if(S.adj.struct>0||S.adj.dehaze>0){
+      try{ applyStructDehaze(c,padL,padT,iw,ih,S.adj.struct,S.adj.dehaze); }catch(e){}
     }
   }
 
