@@ -604,7 +604,7 @@ const PRESETS=[
   // ─ 라이트룸 프리셋 (픽셀 연산) ─
   {id:'lr_insta',name:'인스타',camF:'brightness(116%) contrast(94%) saturate(108%)',lr:{
     exposure:1.1, contrast:-16, highlights:-78, shadows:37, whites:-21, blacks:14,
-    temp:4, tint:11, vibrance:15, saturation:-1, texture:0, grain:0,
+    temp:0, tint:8, vibrance:15, saturation:-1, texture:0, grain:0,
     curve:[[0,0],[64,68],[128,134],[192,198],[255,255]]}},
   {id:'lr_skin', name:'피부톤',camF:'brightness(104%) contrast(96%) saturate(106%)',lr:{
     exposure:0.11, contrast:-14, highlights:-25, shadows:37, whites:7, blacks:-17,
@@ -784,12 +784,14 @@ function applyLrPixels(ctx,x,y,w,h,p){
   for(let i=0;i<d.length;i+=4){
     let r=lut[d[i]], g=lut[d[i+1]], b=lut[d[i+2]];
     // 색온도(따뜻함=R↑B↓) / 색조(틴트=G↔Magenta) — 과포화 방지 위해 완만하게
-    r+=tempF*14; b-=tempF*14;
-    g-=tintF*10; r+=tintF*5; b+=tintF*5;
-    // 채도/생동감 (vibrance는 저채도 픽셀에 더 강하게)
+    r+=tempF*10; b-=tempF*10;
+    g-=tintF*7; r+=tintF*4; b+=tintF*4;
+    // 채도/생동감 (vibrance는 저채도 픽셀에만 작용, 이미 선명한 색은 보호)
     const mx=Math.max(r,g,b), mn=Math.min(r,g,b), avg=(r+g+b)/3;
     const chroma=(mx-mn)/255;
-    const vibAmt=vib*(1-chroma)*1.4 + sat;
+    // 이미 채도 높은 픽셀(chroma>0.5)은 vibrance 효과를 거의 0으로 → 형광화 방지
+    const protect=Math.max(0,1-chroma*1.8);
+    const vibAmt=vib*protect*0.5 + sat*0.6;
     r=avg+(r-avg)*(1+vibAmt);
     g=avg+(g-avg)*(1+vibAmt);
     b=avg+(b-avg)*(1+vibAmt);
