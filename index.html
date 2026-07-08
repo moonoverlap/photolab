@@ -602,10 +602,10 @@ const preview=$('#preview'), pctx=preview.getContext('2d');
 const PRESETS=[
   {id:'none',   name:'원본',   f:''},
   // ─ 라이트룸 프리셋 (픽셀 연산) ─
-  {id:'lr_insta',name:'인스타',camF:'brightness(116%) contrast(94%) saturate(108%)',lr:{
-    exposure:1.1, contrast:-16, highlights:-78, shadows:37, whites:-21, blacks:14,
-    temp:0, tint:8, vibrance:15, saturation:-1, texture:0, grain:0,
-    curve:[[0,0],[64,68],[128,134],[192,198],[255,255]]}},
+  {id:'lr_food', name:'음식',  camF:'brightness(112%) contrast(94%) saturate(116%)',lr:{
+    exposure:0.55, contrast:-12, highlights:-15, shadows:26, whites:0, blacks:0,
+    temp:8, tint:5, vibrance:20, saturation:17, texture:10, grain:0,
+    curve:[[0,0],[64,66],[128,132],[192,196],[255,255]]}},
   {id:'lr_skin', name:'피부톤',camF:'brightness(104%) contrast(96%) saturate(106%)',lr:{
     exposure:0.11, contrast:-14, highlights:-25, shadows:37, whites:7, blacks:-17,
     temp:6, tint:8, vibrance:21, saturation:-8, texture:-13, grain:0,
@@ -1436,7 +1436,7 @@ let camZoom=1, camZoomTrack=null, camZoomCaps=null; // 하드웨어 줌 지원 �
 let camFilter='none'; // 카메라 실시간 필터 (PRESETS의 id)
 
 // 카메라 필터 칩 생성 (원본 + 아이폰 감성 6종 + 대표 기본)
-const CAM_FILTER_IDS=['none','lr_insta','lr_skin','lr_film','ip_nat','ip_gold','ip_cool','ip_mute','ip_soft','ip_cine','film','warm','cool','vivid','mono'];
+const CAM_FILTER_IDS=['none','lr_food','lr_skin','lr_film','ip_nat','ip_gold','ip_cool','ip_mute','ip_soft','ip_cine','film','warm','cool','vivid','mono'];
 (function(){
   const row=$('#camFilterRow');
   CAM_FILTER_IDS.forEach((id,i)=>{
