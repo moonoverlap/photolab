@@ -602,18 +602,18 @@ const preview=$('#preview'), pctx=preview.getContext('2d');
 const PRESETS=[
   {id:'none',   name:'원본',   f:''},
   // ─ 라이트룸 프리셋 (픽셀 연산) ─
-  {id:'lr_insta',name:'인스타',camF:'brightness(118%) contrast(88%) saturate(106%) sepia(6%)',lr:{
+  {id:'lr_insta',name:'인스타',camF:'brightness(122%) contrast(90%) saturate(108%)',lr:{
     exposure:1.37, contrast:-16, highlights:-78, shadows:37, whites:-21, blacks:14,
-    temp:20, tint:11, vibrance:15, saturation:-1, texture:0, grain:0,
-    curve:[[0,10],[64,66],[128,132],[192,196],[255,250]]}},
-  {id:'lr_skin', name:'피부톤',camF:'brightness(103%) contrast(92%) saturate(104%) sepia(4%)',lr:{
+    temp:4, tint:11, vibrance:15, saturation:-1, texture:0, grain:0,
+    curve:[[0,18],[64,84],[128,150],[192,214],[255,255]]}},
+  {id:'lr_skin', name:'피부톤',camF:'brightness(106%) contrast(94%) saturate(106%)',lr:{
     exposure:0.11, contrast:-14, highlights:-25, shadows:37, whites:7, blacks:-17,
-    temp:13, tint:8, vibrance:21, saturation:-8, texture:-13, grain:0,
-    curve:[[0,8],[64,70],[128,134],[192,200],[255,252]]}},
-  {id:'lr_film', name:'필름',  camF:'brightness(106%) contrast(84%) saturate(94%) sepia(10%)',lr:{
+    temp:6, tint:8, vibrance:21, saturation:-8, texture:-13, grain:0,
+    curve:[[0,10],[64,78],[128,142],[192,208],[255,254]]}},
+  {id:'lr_film', name:'필름',  camF:'brightness(108%) contrast(90%) saturate(96%) sepia(6%)',lr:{
     exposure:0.13, contrast:-29, highlights:-55, shadows:30, whites:-28, blacks:-44,
-    temp:20, tint:3, vibrance:9, saturation:-10, texture:30, grain:16,
-    curve:[[0,26],[64,72],[128,130],[192,198],[255,244]]}},
+    temp:9, tint:3, vibrance:9, saturation:-10, texture:30, grain:16,
+    curve:[[0,14],[64,74],[128,140],[192,206],[255,252]]}},
   // ─ 아이폰 감성 ─
   {id:'ip_nat', name:'아이폰', f:'brightness(106%) contrast(95%) saturate(103%)',
    ov:{c:'rgba(255,255,255,.06)',m:'soft-light'}},
@@ -782,9 +782,9 @@ function applyLrPixels(ctx,x,y,w,h,p){
   const grain=(p.grain||0);
   for(let i=0;i<d.length;i+=4){
     let r=lut[d[i]], g=lut[d[i+1]], b=lut[d[i+2]];
-    // 색온도(따뜻함=R↑B↓) / 색조(틴트=G↔Magenta)
-    r+=tempF*30; b-=tempF*30;
-    g-=tintF*18; r+=tintF*9; b+=tintF*9;
+    // 색온도(따뜻함=R↑B↓) / 색조(틴트=G↔Magenta) — 과포화 방지 위해 완만하게
+    r+=tempF*14; b-=tempF*14;
+    g-=tintF*10; r+=tintF*5; b+=tintF*5;
     // 채도/생동감 (vibrance는 저채도 픽셀에 더 강하게)
     const mx=Math.max(r,g,b), mn=Math.min(r,g,b), avg=(r+g+b)/3;
     const chroma=(mx-mn)/255;
