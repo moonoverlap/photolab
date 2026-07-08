@@ -634,7 +634,6 @@ const PRESETS=[
   {id:'vivid',  name:'비비드', f:'saturate(145%) contrast(106%)'},
   {id:'fade',   name:'페이드', f:'contrast(86%) brightness(109%) saturate(84%)'},
   {id:'mono',   name:'모노',   f:'grayscale(100%) contrast(110%)'},
-  {id:'sepia',  name:'세피아', f:'sepia(70%) contrast(94%) brightness(103%)'},
   {id:'noir',   name:'느와르', f:'grayscale(100%) contrast(130%) brightness(92%)'},
 ];
 const COLORS=['#FFFFFF','#111111','#295BFF','#FFD335','#FF5A5A','#2ECC71','#FF8DC7','#8B97A6'];
@@ -782,14 +781,17 @@ function applyLrPixels(ctx,x,y,w,h,p){
   const vib=(p.vibrance||0)/100, sat=(p.saturation||0)/100;
   const grain=(p.grain||0);
   for(let i=0;i<d.length;i+=4){
-    let r=lut[d[i]], g=lut[d[i+1]], b=lut[d[i+2]];
-    // 색온도(따뜻함=R↑B↓) / 색조(틴트=G↔Magenta) — 과포화 방지 위해 완만하게
+    let r=d[i], g=d[i+1], b=d[i+2];
+    // 톤(노출·대비·HL/SH·화이트/블랙·커브)은 휘도 기준으로 적용해 색 비율 보존
+    const lum=0.299*r+0.587*g+0.114*b;
+    const ratio=lum>1?lut[Math.round(lum)]/lum:1;
+    r*=ratio; g*=ratio; b*=ratio;
+    // 색온도(따뜻함=R↑B↓) / 색조(틴트=초록↔마젠타, G만 조절 — R 건드리지 않음)
     r+=tempF*10; b-=tempF*10;
-    g-=tintF*7; r+=tintF*4; b+=tintF*4;
+    g-=tintF*9;
     // 채도/생동감 (vibrance는 저채도 픽셀에만 작용, 이미 선명한 색은 보호)
     const mx=Math.max(r,g,b), mn=Math.min(r,g,b), avg=(r+g+b)/3;
     const chroma=(mx-mn)/255;
-    // 이미 채도 높은 픽셀(chroma>0.5)은 vibrance 효과를 거의 0으로 → 형광화 방지
     const protect=Math.max(0,1-chroma*1.8);
     const vibAmt=vib*protect*0.5 + sat*0.6;
     r=avg+(r-avg)*(1+vibAmt);
