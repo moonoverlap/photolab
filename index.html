@@ -410,6 +410,9 @@
     <!-- 필터 -->
     <div class="tool-panel" id="p-filter">
       <div class="filter-row" id="filterRow"></div>
+      <div class="slider-row" id="strengthRow" style="display:none">
+        <label>강도</label><input type="range" min="0" max="100" value="100" id="filterStrength"><output>100</output>
+      </div>
     </div>
 
     <!-- 자르기 -->
@@ -592,7 +595,7 @@ const S = {
   rot:0, flipH:false, flipV:false,
   crop:null,           // {x,y,w,h} base(회전 적용) 좌표
   adj:{bri:100,con:100,sat:100,temp:0,struct:0,dehaze:0,fade:0,grain:0,vig:0},
-  preset:'none',
+  preset:'none', presetStrength:1,
   texts:[],            // {id,str,x,y(0~1),size(%),color}
   activeText:null,
   frame:'none',
@@ -696,6 +699,9 @@ function resetEdits(){
   S.rot=0;S.flipH=false;S.flipV=false;S.crop=null;
   S.adj={bri:100,con:100,sat:100,temp:0,struct:0,dehaze:0,fade:0,grain:0,vig:0};
   S.preset='none';S.texts=[];S.activeText=null;S.frame='none';
+  S.presetStrength=1;
+  const sr=$('#strengthRow'); if(sr){sr.style.display='none';$('#filterStrength').value=100;$('#filterStrength').nextElementSibling.textContent=100;}
+  resetViewZoom();
   $$('#p-adjust input[type=range]').forEach(r=>{
     r.value=r.dataset.adj==='bri'||r.dataset.adj==='con'||r.dataset.adj==='sat'?100:0;
     syncOutput(r);
@@ -902,10 +908,15 @@ function applyGrain(ctx,x,y,w,h,amount){
   ctx.putImageData(id,x,y);
 }
 
-function adjFilterString(){
+function userAdjFilter(){
   const a=S.adj;
-  const p=PRESETS.find(p=>p.id===S.preset)?.f||'';
-  return `brightness(${a.bri}%) contrast(${a.con}%) saturate(${a.sat}%) ${p}`.trim();
+  return `brightness(${a.bri}%) contrast(${a.con}%) saturate(${a.sat}%)`;
+}
+function presetCssFilter(){
+  return PRESETS.find(p=>p.id===S.preset)?.f||'';
+}
+function adjFilterString(){
+  return `${userAdjFilter()} ${presetCssFilter()}`.trim();
 }
 /**
  * 최종 이미지를 캔버스로 렌더
@@ -931,31 +942,56 @@ function renderScene(scale,opts={}){
     roundPath(c,padL,padT,iw,ih,fs.round); // round는 이미 출력 크기 기준으로 계산됨
     c.clip();
   }
-  c.filter=raw?'none':adjFilterString();
-  c.imageSmoothingQuality='high';
-  c.drawImage(baseCanvas,cr.x,cr.y,cr.w,cr.h,padL,padT,iw,ih);
-  c.filter='none';
+  const pv0=PRESETS.find(x=>x.id===S.preset);
+  const hasPreset=!raw&&pv0&&pv0.id!=='none';
+  const strength=hasPreset?S.presetStrength:1;
 
-  // 라이트룸 프리셋 픽셀 연산
-  if(!raw){
-    const lrp=PRESETS.find(x=>x.id===S.preset);
-    if(lrp&&lrp.lr){
-      try{ applyLrPixels(c,padL,padT,iw,ih,lrp.lr); }catch(e){}
-    }
-    // 구조(로컬 대비) / 디헤이즈 (Snapseed 스타일)
-    if(S.adj.struct>0||S.adj.dehaze>0){
-      try{ applyStructDehaze(c,padL,padT,iw,ih,S.adj.struct,S.adj.dehaze); }catch(e){}
+  c.imageSmoothingQuality='high';
+  if(hasPreset&&strength<1){
+    // 강도 블렌딩: 사용자보정만 적용한 베이스 → 그 위에 프리셋 적용본을 alpha로 합성
+    c.filter=userAdjFilter();
+    c.drawImage(baseCanvas,cr.x,cr.y,cr.w,cr.h,padL,padT,iw,ih);
+    c.filter='none';
+    // 프리셋 레이어를 별도 캔버스에 렌더
+    const pl=document.createElement('canvas'); pl.width=cw; pl.height=ch;
+    const plc=pl.getContext('2d');
+    plc.imageSmoothingQuality='high';
+    plc.filter=adjFilterString();
+    plc.drawImage(baseCanvas,cr.x,cr.y,cr.w,cr.h,padL,padT,iw,ih);
+    plc.filter='none';
+    if(pv0.lr){ try{ applyLrPixels(plc,padL,padT,iw,ih,pv0.lr); }catch(e){} }
+    if(pv0.ov){ plc.globalCompositeOperation=pv0.ov.m; plc.fillStyle=pv0.ov.c; plc.fillRect(padL,padT,iw,ih); plc.globalCompositeOperation='source-over'; }
+    c.globalAlpha=strength;
+    c.drawImage(pl,0,0);
+    c.globalAlpha=1;
+  }else{
+    c.filter=raw?'none':adjFilterString();
+    c.drawImage(baseCanvas,cr.x,cr.y,cr.w,cr.h,padL,padT,iw,ih);
+    c.filter='none';
+    // 라이트룸 프리셋 픽셀 연산
+    if(!raw){
+      const lrp=PRESETS.find(x=>x.id===S.preset);
+      if(lrp&&lrp.lr){
+        try{ applyLrPixels(c,padL,padT,iw,ih,lrp.lr); }catch(e){}
+      }
     }
   }
 
+  // 구조(로컬 대비) / 디헤이즈 (Snapseed 스타일) — 프리셋 강도와 무관하게 항상 적용
+  if(!raw&&(S.adj.struct>0||S.adj.dehaze>0)){
+    try{ applyStructDehaze(c,padL,padT,iw,ih,S.adj.struct,S.adj.dehaze); }catch(e){}
+  }
+
   if(!raw){
-    // 프리셋 톤 오버레이 (아이폰 감성 계열)
+    // 프리셋 톤 오버레이 (아이폰 감성 계열) — 강도 100%일 때만 여기서 (블렌딩 시엔 위에서 처리됨)
     const pv=PRESETS.find(x=>x.id===S.preset);
-    if(pv&&pv.ov){
+    if(pv&&pv.ov&&!(hasPreset&&strength<1)){
+      c.globalAlpha=strength;
       c.globalCompositeOperation=pv.ov.m;
       c.fillStyle=pv.ov.c;
       c.fillRect(padL,padT,iw,ih);
       c.globalCompositeOperation='source-over';
+      c.globalAlpha=1;
     }
     // 온도
     if(S.adj.temp!==0){
@@ -1093,6 +1129,11 @@ function buildFilterThumbs(){
     item.append(c,label);
     item.addEventListener('click',()=>{
       S.preset=p.id;
+      S.presetStrength=1;
+      const sr=$('#strengthRow');
+      sr.style.display=p.id==='none'?'none':'flex';
+      $('#filterStrength').value=100;
+      $('#filterStrength').nextElementSibling.textContent=100;
       $$('#filterRow .f-item').forEach(el=>el.classList.remove('sel'));
       item.classList.add('sel');
       fitAndRender();
@@ -1100,6 +1141,13 @@ function buildFilterThumbs(){
     row.appendChild(item);
   });
 }
+
+/* ═══════════════ 필터 강도 ═══════════════ */
+$('#filterStrength').addEventListener('input',e=>{
+  S.presetStrength=+e.target.value/100;
+  e.target.nextElementSibling.textContent=e.target.value;
+  requestRender();
+});
 
 /* ═══════════════ 탭 전환 ═══════════════ */
 $$('#tabbar .tab').forEach(tab=>{
@@ -1114,7 +1162,7 @@ $$('#tabbar .tab').forEach(tab=>{
 
 /* ═══════════════ 자르기 ═══════════════ */
 let cropRect=null; // 표시 px 기준 {x,y,w,h} (preview 요소 좌표계)
-function enterCrop(){ S.cropMode=true; $('#cropLayer').classList.add('on'); fitAndRender(); initCropBox(); }
+function enterCrop(){ resetViewZoom(); S.cropMode=true; $('#cropLayer').classList.add('on'); fitAndRender(); initCropBox(); }
 function exitCropUI(){ S.cropMode=false; $('#cropLayer').classList.remove('on'); }
 function cancelCrop(){ exitCropUI(); switchTab('adjust'); fitAndRender(); }
 function switchTab(id){ $$('#tabbar .tab').forEach(t=>{if(t.dataset.tab===id)t.click();}); }
@@ -1281,7 +1329,8 @@ $('#textSize').addEventListener('input',e=>{
   preview.addEventListener('pointerdown',e=>{
     if(S.cropMode)return;
     const rect=preview.getBoundingClientRect();
-    const px=e.clientX-rect.left, py=e.clientY-rect.top;
+    const vs=rect.width/preview.offsetWidth||1; // 화면 확대 배율 보정
+    const px=(e.clientX-rect.left)/vs, py=(e.clientY-rect.top)/vs;
     const t=hitTest(px,py);
     if(t){
       S.activeText=t.id; dragging=t;
@@ -1297,7 +1346,8 @@ $('#textSize').addEventListener('input',e=>{
   preview.addEventListener('pointermove',e=>{
     if(!dragging)return;
     const rect=preview.getBoundingClientRect();
-    const px=e.clientX-rect.left, py=e.clientY-rect.top, r=lastImgRect;
+    const vs=rect.width/preview.offsetWidth||1;
+    const px=(e.clientX-rect.left)/vs, py=(e.clientY-rect.top)/vs, r=lastImgRect;
     dragging.x=Math.min(1,Math.max(0,(px-off.dx-r.x)/r.w));
     dragging.y=Math.min(1,Math.max(0,(py-off.dy-r.y)/r.h));
     requestRender();
@@ -1417,6 +1467,19 @@ Reduce the appearance of double chin or jaw compression caused by perspective di
 Simulate a slightly higher and more flattering eye-level camera angle naturally without changing the person's real facial anatomy. Preserve realistic shadows, neck proportions, and facial texture.
 No face slimming, no beauty filter, no plastic skin, no AI look.
 The result should feel like the same real photo captured from a slightly better angle.`},
+  {id:'retouch',name:'인물 리터칭',prompt:
+`Perform professional full portrait retouching while completely preserving the person's real identity, facial structure, body proportions, pose, and expression.
+Retouch naturally: clean up temporary skin blemishes, stray flyaway hairs, minor clothing wrinkles, and distracting small imperfections.
+Subtly brighten and sharpen the eyes, naturally whiten teeth only if visible, and even out skin tone while keeping realistic pores and texture.
+Do NOT slim the face or body, do NOT change facial features, no plastic skin, no beauty-filter look.
+Maintain the original lighting, colors, background, and composition exactly.
+The result should look like an invisible, high-end magazine retouch of the same photo — photorealistic and natural.`},
+  {id:'bgremove',name:'배경 제거',prompt:
+`Remove the entire background and replace it with a clean, pure white studio background (#FFFFFF) while perfectly preserving the main subject with precise, natural edges.
+Keep every detail of the subject intact: hair strands, fur, fabric texture, transparent or reflective parts, and fine edges must be cut out cleanly and realistically.
+Add a very subtle, soft natural drop shadow beneath the subject so it looks professionally photographed in a white studio, suitable for e-commerce product photos.
+Do not alter the subject's colors, lighting, proportions, or details in any way.
+The result should look like a professional studio cutout photo on a seamless white background.`},
 ];
 let aiPrev=null, aiBusy=false;
 
@@ -1735,6 +1798,60 @@ async function capturePhoto(){
     }
   },{passive:false});
   stage.addEventListener('touchend',()=>{startDist=0;});
+})();
+
+/* ═══════════════ 편집 화면 확대 (핀치 줌) ═══════════════ */
+let viewZoom=1, viewPanX=0, viewPanY=0;
+function applyViewZoom(){
+  const w=$('#canvasWrap');
+  w.style.transform=viewZoom>1?`translate(${viewPanX}px,${viewPanY}px) scale(${viewZoom})`:'';
+}
+function resetViewZoom(){ viewZoom=1; viewPanX=0; viewPanY=0; applyViewZoom(); }
+(function(){
+  const stage=$('#stage');
+  let pinchStart=0, zoomStart=1, panStart=null, midStart=null;
+  const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  const mid=t=>({x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2});
+  stage.addEventListener('touchstart',e=>{
+    if(S.cropMode)return;
+    if(e.touches.length===2){
+      pinchStart=dist(e.touches); zoomStart=viewZoom;
+      midStart=mid(e.touches); panStart={x:viewPanX,y:viewPanY};
+    }
+  },{passive:true});
+  stage.addEventListener('touchmove',e=>{
+    if(S.cropMode)return;
+    if(e.touches.length===2&&pinchStart>0){
+      e.preventDefault();
+      viewZoom=Math.min(5,Math.max(1,zoomStart*dist(e.touches)/pinchStart));
+      const m=mid(e.touches);
+      viewPanX=panStart.x+(m.x-midStart.x);
+      viewPanY=panStart.y+(m.y-midStart.y);
+      if(viewZoom<=1){viewPanX=0;viewPanY=0;}
+      applyViewZoom();
+    }
+  },{passive:false});
+  stage.addEventListener('touchend',e=>{
+    if(e.touches.length<2)pinchStart=0;
+    if(viewZoom<=1.02)resetViewZoom();
+  });
+  // 더블탭: 1x ↔ 2.5x
+  let lastTap=0;
+  stage.addEventListener('pointerdown',e=>{
+    if(S.cropMode)return;
+    const now=Date.now();
+    if(now-lastTap<300){
+      if(viewZoom>1)resetViewZoom();
+      else{
+        viewZoom=2.5;
+        const r=stage.getBoundingClientRect();
+        viewPanX=(r.left+r.width/2-e.clientX)*1.5;
+        viewPanY=(r.top+r.height/2-e.clientY)*1.5;
+        applyViewZoom();
+      }
+      lastTap=0;
+    }else lastTap=now;
+  });
 })();
 
 /* ═══════════════ 토스트 ═══════════════ */
