@@ -117,7 +117,7 @@ svg{display:block}
 .hero button{flex:none;width:78%;aspect-ratio:4/5;border-radius:18px;overflow:hidden;scroll-snap-align:center;background:var(--soft);position:relative}
 .hero button:only-child{width:100%}
 .hero img{width:100%;height:100%;object-fit:cover}
-.hero span{position:absolute;left:12px;bottom:10px;color:#fff;font-size:12px;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+.hero span{position:absolute;left:12px;right:12px;bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;font-size:12px;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,.5)}
 .memo-box{margin:16px 18px 0}
 .memo-box label{display:block;font-size:12px;font-weight:700;color:var(--sub);margin-bottom:6px}
 .memo-box textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:14px;background:var(--soft);padding:12px 14px;font:inherit;font-size:14px;line-height:1.5;color:var(--ink);resize:none;outline:none;user-select:text}
@@ -141,6 +141,17 @@ svg{display:block}
 .stop .t{flex:1;min-width:0}
 .stop .t b{display:block;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stop .t span{font-size:12px;color:var(--sub)}
+.stop .t .nm{display:flex;align-items:center;gap:4px;min-width:0}
+.stop .t .nm b{min-width:0}
+.pen{flex:none;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:var(--mute)}
+.pen:active{background:var(--soft)}
+.edit{display:flex;flex-direction:column;gap:8px}
+.edit input{width:100%;height:40px;border:1.5px solid var(--blue);border-radius:10px;padding:0 12px;font:inherit;font-size:15px;font-weight:600;color:var(--ink);outline:none;user-select:text}
+.edit .row{display:flex;gap:6px;flex-wrap:wrap}
+.edit .row button{font-size:12px;font-weight:700;border-radius:8px;padding:7px 12px;background:var(--soft);color:var(--sub)}
+.edit .row .ok{background:var(--blue);color:#fff}
+.edit small{font-size:11px;color:var(--mute)}
+.custom{font-style:normal;font-size:10px;font-weight:700;color:var(--blue);background:var(--blue-50);border-radius:5px;padding:1px 5px;flex:none}
 .stop .th{flex:none;display:flex;gap:3px}
 .stop .th img{width:36px;height:36px;border-radius:8px;object-fit:cover;background:var(--soft)}
 .links{display:flex;gap:6px;padding:0 18px 6px 52px}
@@ -436,13 +447,16 @@ function renderDay(k){
   $('#sSub').textContent=list.length?`사진 ${list.length}장 · ${pl.length?`장소 ${pl.length}곳`:'장소 확인 중'} · ${fmtTime(list[0].ts)} ~ ${fmtTime(list[list.length-1].ts)}`:(hiddenByDay[k]?`보이는 사진 없음 · 숨긴 사진 ${hiddenByDay[k].length}장`:'이 날은 위치 사진이 없어요');
   const ta=$('#memoTa');const keepFocus=ta&&document.activeElement===ta&&$('#sheet').dataset.day===k;
   if(keepFocus)return; // 입력 중엔 다시 그리지 않음
+  if(document.querySelector('#stops .edit'))return; // 장소 이름 수정 중
   const groups=[];
   for(const p of list){const key=p.place?'p:'+p.place:'g:'+geoKey(p.lat,p.lng);const g=groups[groups.length-1];if(g&&g.key===key)g.items.push(p);else groups.push({key,items:[p]})}
   const hl=(hiddenByDay[k]||[]).slice().sort((a,b)=>a.ts-b.ts);
   const sh=$('#sheet'),skey=k+'|'+list.map(p=>p.id).join(',')+'|h:'+hl.map(p=>p.id).join(','),sig=skey+'|'+list.map(p=>p.place||'').join(',');
   if(sh.dataset.sig===sig)return; // 바뀐 게 없으면 그대로
   const stopsHTML=groups.map((g,i)=>{const p=g.items[0],last=g.items[g.items.length-1];
-      return `<div class="stop"><span class="k">${i+1}</span><div class="t"><b>${esc(p.place||'장소 이름 찾는 중…')}</b><span>${esc([p.region,fmtTime(p.ts)+(last.ts!==p.ts?` ~ ${fmtTime(last.ts)}`:''),g.items.length+'장'].filter(Boolean).join(' · '))}</span></div><div class="th">${g.items.slice(0,3).map(q=>`<img src="${thumbUrl(q)}" alt="">`).join('')}</div></div>${links(p)}`}).join('');
+      const cu=g.items.some(q=>{const e=geo.get(geoKey(q.lat,q.lng));return e&&e.custom});
+      return `<div class="stop" data-gi="${i}"><span class="k">${i+1}</span><div class="t"><div class="nm"><b>${esc(p.place||'장소 이름 찾는 중…')}</b>${cu?'<em class="custom">직접 입력</em>':''}<button class="pen" data-edit="${i}" aria-label="장소 이름 수정"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button></div><span>${esc([p.region,fmtTime(p.ts)+(last.ts!==p.ts?` ~ ${fmtTime(last.ts)}`:''),g.items.length+'장'].filter(Boolean).join(' · '))}</span></div><div class="th">${g.items.slice(0,3).map(q=>`<img src="${thumbUrl(q)}" alt="">`).join('')}</div></div>${links(p)}`}).join('');
+  dayGroups=groups;
   const pts=groups.map(g=>[g.items[0].lat,g.items[0].lng]);
   if(sh.dataset.skey===skey&&list.length){
     // 같은 날·같은 사진: 장소 이름·마커만 갱신 (지도는 다시 만들지 않음)
@@ -512,6 +526,36 @@ $('#prev').onclick=()=>shift(-1);$('#next').onclick=()=>shift(1);
 document.querySelector('.tabs').onclick=e=>{const b=e.target.closest('[data-v]');if(b)setView(b.dataset.v)};
 $('#grid').onclick=e=>{const c=e.target.closest('[data-day]');if(c)openDayPanel(c.dataset.day)};
 $('#alb').onclick=e=>{const b=e.target.closest('[data-id]');if(b)openLb(b.dataset.id,photos.filter(p=>p.day===b.dataset.day).sort((a,b)=>a.ts-b.ts))};
+let dayGroups=[];
+function startEdit(i){
+  const g=dayGroups[i];if(!g)return;const row=document.querySelector(`#stops .stop[data-gi="${i}"] .t`);if(!row)return;
+  const cur=g.items[0].place||'';const keys=[...new Set(g.items.map(q=>geoKey(q.lat,q.lng)))];
+  const hasOrig=keys.some(k=>{const e=geo.get(k);return e&&e.custom&&e.orig});
+  row.innerHTML=`<div class="edit"><input class="pedit" maxlength="40" value="${esc(cur)}" placeholder="예) 우리집, 회사, 단골 카페"><small>같은 위치에서 찍은 다른 날 사진에도 이 이름이 쓰여요</small><div class="row"><button class="ok" data-save="${i}">저장</button><button data-cancel="1">취소</button>${hasOrig?`<button data-reset="${i}">원래 이름으로</button>`:''}</div></div>`;
+  const inp=row.querySelector('input');inp.focus();inp.select();
+  inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();saveEdit(i,inp.value)}};
+}
+function saveEdit(i,val){
+  const g=dayGroups[i];val=(val||'').trim();if(!g)return;
+  if(!val){toast('장소 이름을 입력해주세요');return}
+  const t=db.transaction('geo','readwrite'),o=t.objectStore('geo');
+  for(const k of new Set(g.items.map(q=>geoKey(q.lat,q.lng)))){
+    const e=geo.get(k)||{k,short:'',region:''};
+    const n={...e,k,short:val,custom:true,orig:e.custom?e.orig:(e.short||'')};
+    geo.set(k,n);o.put(n);
+  }
+  finishEdit();toast('장소 이름을 바꿨어요');
+}
+function resetEdit(i){
+  const g=dayGroups[i];if(!g)return;
+  const t=db.transaction('geo','readwrite'),o=t.objectStore('geo');
+  for(const k of new Set(g.items.map(q=>geoKey(q.lat,q.lng)))){
+    const e=geo.get(k);if(!e||!e.custom)continue;
+    if(e.orig){const n={...e,short:e.orig,custom:false};delete n.orig;geo.set(k,n);o.put(n)}else{geo.delete(k);o.delete(k)}
+  }
+  finishEdit();toast('원래 이름으로 돌렸어요');geocodeQueue();
+}
+function finishEdit(){const sh=$('#sheet');sh.dataset.sig='';document.activeElement&&document.activeElement.blur();const ed=document.querySelector('#stops .edit');if(ed)ed.remove();build();render()}
 function unhide(ids){
   const t=db.transaction('hidden','readwrite'),o=t.objectStore('hidden');
   ids.forEach(id=>{hidden.delete(id);o.delete(id)});
@@ -519,6 +563,10 @@ function unhide(ids){
 }
 $('#sBody').onclick=e=>{
   const tg=e.target.closest('#htog');if(tg){hidOpen=!hidOpen;$('#hbox').classList.toggle('on',hidOpen);tg.classList.toggle('open',hidOpen);tg.firstChild.textContent=tg.firstChild.textContent.replace(hidOpen?'보기':'접기',hidOpen?'접기':'보기');if(hidOpen)setTimeout(()=>$('#hbox').scrollIntoView({behavior:'smooth',block:'nearest'}),50);return}
+  const ed=e.target.closest('[data-edit]');if(ed){startEdit(+ed.dataset.edit);return}
+  const sv=e.target.closest('[data-save]');if(sv){saveEdit(+sv.dataset.save,sv.closest('.edit').querySelector('input').value);return}
+  const rs=e.target.closest('[data-reset]');if(rs){resetEdit(+rs.dataset.reset);return}
+  if(e.target.closest('[data-cancel]')){finishEdit();return}
   const uh=e.target.closest('[data-unhide]');if(uh){unhide([uh.dataset.unhide]);return}
   const ud=e.target.closest('[data-unhide-day]');if(ud){unhide((hiddenByDay[ud.dataset.unhideDay]||[]).map(p=>p.id));return}
 const u=e.target.closest('[data-url]');if(u){N?N.openUrl(u.dataset.url):open(u.dataset.url);return}const b=e.target.closest('.hero [data-id]');if(b)openLb(b.dataset.id)};
