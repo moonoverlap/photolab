@@ -353,7 +353,9 @@ function links(p){
   const n=encodeURIComponent(p.place||'사진 위치');
   return `<div class="links"><button data-url="https://map.naver.com/p/search/${q}">네이버지도</button><button data-url="https://map.kakao.com/link/map/${n},${p.lat},${p.lng}">카카오맵</button><button data-url="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}">구글지도</button></div>`}
 let rsT;function renderSoon(){clearTimeout(rsT);rsT=setTimeout(render,350)}
-const imgTag=(src,extra='')=>`<img src="${src}" alt="" loading="lazy" onload="this.classList.add('ld')" ${extra}>`;
+const LOADED=new Set();window.__ld=el=>{el.classList.add('ld');LOADED.add(el.getAttribute('src'))};
+const imgTag=(src,extra='')=>`<img src="${src}" alt="" loading="lazy" class="${LOADED.has(src)?'ld':''}" onload="__ld(this)" ${extra}>`;
+function setHTML(el,h){if(el.__h!==h){el.innerHTML=h;el.__h=h}}
 
 /* ---------- render ---------- */
 function render(){
@@ -375,13 +377,13 @@ function renderCal(mp){
       h+=`<button class="${cls}" data-day="${k}">${imgTag(thumbUrl(cover))}<span class="d">${d}</span>${list.length>1?`<span class="n">${list.length}</span>`:''}${pls.length?`<span class="pl">${esc(pls[0])}</span>`:''}${hasMemo?'<i class="memo"></i>':''}</button>`;
     }else h+=`<div class="${cls}"><span class="d">${d}</span>${hasMemo?'<i class="memo"></i>':''}</div>`;
   }
-  $('#grid').innerHTML=h;
+  setHTML($('#grid'),h);
 }
 function renderAlb(mp){
   const bd=byDay(mp),keys=Object.keys(bd).sort().reverse();
-  if(!keys.length){$('#alb').innerHTML='<div class="none">이번 달엔 위치 사진이 없어요</div>';return}
-  $('#alb').innerHTML=keys.map(k=>{const l=bd[k],d=new Date(k+'T00:00:00'),pl=places(l),memo=memos.get(k);
-    return `<div class="ad"><b>${d.getMonth()+1}.${d.getDate()} (${WD[d.getDay()]})</b><span>${esc(pl.slice(0,3).join(' · '))}</span><em>${l.length}장</em></div>${memo?`<div class="am">${esc(memo)}</div>`:''}<div class="ag">${l.map(p=>`<button data-id="${p.id}" data-day="${k}">${imgTag(thumbUrl(p))}</button>`).join('')}</div>`}).join('');
+  if(!keys.length){setHTML($('#alb'),'<div class="none">이번 달엔 위치 사진이 없어요</div>');return}
+  setHTML($('#alb'),keys.map(k=>{const l=bd[k],d=new Date(k+'T00:00:00'),pl=places(l),memo=memos.get(k);
+    return `<div class="ad"><b>${d.getMonth()+1}.${d.getDate()} (${WD[d.getDay()]})</b><span>${esc(pl.slice(0,3).join(' · '))}</span><em>${l.length}장</em></div>${memo?`<div class="am">${esc(memo)}</div>`:''}<div class="ag">${l.map(p=>`<button data-id="${p.id}" data-day="${k}">${imgTag(thumbUrl(p))}</button>`).join('')}</div>`}).join(''));
 }
 
 let mainMap,mainLayer;
@@ -389,6 +391,7 @@ const tiles=()=>L.tileLayer(N?'/tile/{z}/{x}/{y}':'https://tile.openstreetmap.or
 function renderMap(mp){
   if(!mainMap){mainMap=L.map('map',{zoomControl:false});tiles().addTo(mainMap);mainLayer=L.layerGroup().addTo(mainMap);mainMap.setView([36.4,127.9],7)}
   setTimeout(()=>mainMap.invalidateSize(),60);
+  const msig=monthKey()+'|'+mp.map(p=>p.id).join(',');if(mainMap.__sig===msig)return;mainMap.__sig=msig;
   mainLayer.clearLayers();
   const g={};for(const p of mp)(g[geoKey(p.lat,p.lng)]||=[]).push(p);
   const pts=[];
@@ -403,7 +406,7 @@ let dayMap,memoT;
 function openDayPanel(k){openDay=k;renderDay(k);$('#sheet').classList.add('on');$('#scrim').classList.add('on')}
 function closeDay(){
   const ta=$('#memoTa');if(ta)saveMemo(openDay,ta.value);
-  openDay=null;$('#sheet').classList.remove('on');$('#scrim').classList.remove('on');render();
+  openDay=null;$('#sheet').dataset.sig='';$('#sheet').dataset.skey='';$('#sheet').classList.remove('on');$('#scrim').classList.remove('on');render();
 }
 function saveMemo(day,text){
   if(!day)return;text=text.trim();
@@ -416,28 +419,44 @@ function renderDay(k){
   $('#sSub').textContent=list.length?`사진 ${list.length}장 · ${pl.length?`장소 ${pl.length}곳`:'장소 확인 중'} · ${fmtTime(list[0].ts)} ~ ${fmtTime(list[list.length-1].ts)}`:'이 날은 위치 사진이 없어요';
   const ta=$('#memoTa');const keepFocus=ta&&document.activeElement===ta&&$('#sheet').dataset.day===k;
   if(keepFocus)return; // 입력 중엔 다시 그리지 않음
-  $('#sheet').dataset.day=k;
   const groups=[];
   for(const p of list){const key=p.place?'p:'+p.place:'g:'+geoKey(p.lat,p.lng);const g=groups[groups.length-1];if(g&&g.key===key)g.items.push(p);else groups.push({key,items:[p]})}
+  const sh=$('#sheet'),skey=k+'|'+list.map(p=>p.id).join(','),sig=skey+'|'+list.map(p=>p.place||'').join(',');
+  if(sh.dataset.sig===sig)return; // 바뀐 게 없으면 그대로
+  const stopsHTML=groups.map((g,i)=>{const p=g.items[0],last=g.items[g.items.length-1];
+      return `<div class="stop"><span class="k">${i+1}</span><div class="t"><b>${esc(p.place||'장소 이름 찾는 중…')}</b><span>${esc([p.region,fmtTime(p.ts)+(last.ts!==p.ts?` ~ ${fmtTime(last.ts)}`:''),g.items.length+'장'].filter(Boolean).join(' · '))}</span></div><div class="th">${g.items.slice(0,3).map(q=>`<img src="${thumbUrl(q)}" alt="">`).join('')}</div></div>${links(p)}`}).join('');
+  const pts=groups.map(g=>[g.items[0].lat,g.items[0].lng]);
+  if(sh.dataset.skey===skey&&list.length){
+    // 같은 날·같은 사진: 장소 이름·마커만 갱신 (지도는 다시 만들지 않음)
+    sh.dataset.sig=sig;
+    $('#stops').innerHTML=stopsHTML;
+    document.querySelectorAll('.hero button').forEach((b,i)=>{const p=list[i];if(p)b.querySelector('span').textContent=fmtTime(p.ts)+(p.place?' · '+p.place:'')});
+    drawDayMarkers(groups,pts,false);
+    return;
+  }
+  sh.dataset.skey=skey;sh.dataset.sig=sig;
   let h='';
   if(list.length)h+=`<div class="hero">${list.map(p=>`<button data-id="${p.id}">${imgTag(fullUrl(p))}<span>${fmtTime(p.ts)}${p.place?' · '+esc(p.place):''}</span></button>`).join('')}</div>`;
   h+=`<div class="memo-box"><label>오늘의 한 줄</label><textarea id="memoTa" rows="2" placeholder="이 날을 한 줄로 남겨보세요">${esc(memos.get(k)||'')}</textarea></div>`;
   if(list.length){
-    h+=`<div class="sec">이동한 곳</div><div id="dayMap"></div>`;
-    groups.forEach((g,i)=>{const p=g.items[0],last=g.items[g.items.length-1];
-      h+=`<div class="stop"><span class="k">${i+1}</span><div class="t"><b>${esc(p.place||'장소 이름 찾는 중…')}</b><span>${esc([p.region,fmtTime(p.ts)+(last.ts!==p.ts?` ~ ${fmtTime(last.ts)}`:''),g.items.length+'장'].filter(Boolean).join(' · '))}</span></div><div class="th">${g.items.slice(0,3).map(q=>`<img src="${thumbUrl(q)}" alt="">`).join('')}</div></div>${links(p)}`});
+    h+=`<div class="sec">이동한 곳</div><div id="stops">${stopsHTML}</div>`;
   }
   $('#sBody').innerHTML=h;
   lbList=list;
   $('#memoTa').oninput=e=>{clearTimeout(memoT);const v=e.target.value;memoT=setTimeout(()=>saveMemo(k,v),500)};
   if(dayMap){dayMap.remove();dayMap=null}
-  if(list.length){
-    dayMap=L.map('dayMap',{zoomControl:false,attributionControl:false,dragging:true});tiles().addTo(dayMap);
-    const pts=groups.map(g=>[g.items[0].lat,g.items[0].lng]);
-    groups.forEach((g,i)=>L.marker(pts[i],{icon:L.divIcon({className:'',html:`<div class="num">${i+1}</div>`,iconSize:[24,24],iconAnchor:[12,12]})}).addTo(dayMap));
-    if(pts.length>1)L.polyline(pts,{color:'#295BFF',weight:3,opacity:.7,dashArray:'6 6'}).addTo(dayMap);
-    setTimeout(()=>{if(!dayMap)return;dayMap.invalidateSize();pts.length>1?dayMap.fitBounds(pts,{padding:[26,26],maxZoom:16}):dayMap.setView(pts[0],15)},320);
+  if(list.length&&document.getElementById('dayMap')){
+    dayMap=L.map('dayMap',{zoomControl:false,attributionControl:false,dragging:true,fadeAnimation:false});tiles().addTo(dayMap);
+    dayLayer=L.layerGroup().addTo(dayMap);
+    drawDayMarkers(groups,pts,false);
+    setTimeout(()=>{if(!dayMap)return;dayMap.invalidateSize();pts.length>1?dayMap.fitBounds(pts,{padding:[26,26],maxZoom:16,animate:false}):dayMap.setView(pts[0],15,{animate:false})},320);
   }
+}
+let dayLayer;
+function drawDayMarkers(groups,pts){
+  if(!dayLayer)return;dayLayer.clearLayers();
+  groups.forEach((g,i)=>L.marker(pts[i],{icon:L.divIcon({className:'',html:`<div class="num">${i+1}</div>`,iconSize:[24,24],iconAnchor:[12,12]})}).addTo(dayLayer));
+  if(pts.length>1)L.polyline(pts,{color:'#295BFF',weight:3,opacity:.7,dashArray:'6 6'}).addTo(dayLayer);
 }
 
 /* ---------- 크게 보기 ---------- */
