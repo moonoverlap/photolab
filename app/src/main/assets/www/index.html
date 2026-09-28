@@ -122,7 +122,10 @@ svg{display:block}
 .memo-box label{display:block;font-size:12px;font-weight:700;color:var(--sub);margin-bottom:6px}
 .memo-box textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:14px;background:var(--soft);padding:12px 14px;font:inherit;font-size:14px;line-height:1.5;color:var(--ink);resize:none;outline:none;user-select:text}
 .memo-box textarea:focus{border-color:var(--blue);background:#fff}
-.hsec{display:flex;align-items:center;justify-content:space-between;margin:26px 18px 10px}
+.htog{display:flex;align-items:center;justify-content:center;gap:6px;margin:26px 18px 0;width:calc(100% - 36px);height:44px;border-radius:12px;background:var(--soft);font-size:13px;font-weight:700;color:var(--sub)}
+.htog svg{transition:transform .2s}.htog.open svg{transform:rotate(180deg)}
+.hbox{display:none}.hbox.on{display:block}
+.hsec{display:flex;align-items:center;justify-content:space-between;margin:14px 18px 10px}
 .hsec span{font-size:12px;font-weight:700;color:var(--sub)}
 .hsec button{font-size:12px;font-weight:700;color:var(--blue);background:var(--blue-50);border-radius:8px;padding:6px 10px}
 .hgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0 18px}
@@ -416,7 +419,8 @@ function renderMap(mp){
 
 /* ---------- 날짜 시트 ---------- */
 let dayMap,memoT;
-function openDayPanel(k){openDay=k;renderDay(k);$('#sheet').classList.add('on');$('#scrim').classList.add('on')}
+let hidOpen=false;
+function openDayPanel(k){openDay=k;hidOpen=false;renderDay(k);$('#sheet').classList.add('on');$('#scrim').classList.add('on')}
 function closeDay(){
   const ta=$('#memoTa');if(ta)saveMemo(openDay,ta.value);
   openDay=null;$('#sheet').dataset.sig='';$('#sheet').dataset.skey='';$('#sheet').classList.remove('on');$('#scrim').classList.remove('on');render();
@@ -456,9 +460,9 @@ function renderDay(k){
     h+=`<div class="sec">이동한 곳</div><div id="stops">${stopsHTML}</div>`;
   }
   if(hl.length){
-    h+=`<div class="hsec"><span>숨긴 사진 ${hl.length}장</span><button data-unhide-day="${k}">모두 다시 보이기</button></div>`;
-    h+=`<div class="hgrid">${hl.map(p=>`<button data-unhide="${p.id}"><img src="${thumbUrl(p)}" alt=""><i>다시 보이기</i></button>`).join('')}</div>`;
-    h+=`<div class="hnote">사진을 누르면 달력에 다시 나타나요</div>`;
+    h+=`<button class="htog ${hidOpen?'open':''}" id="htog">숨긴 사진 ${hl.length}장 ${hidOpen?'접기':'보기'}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>`;
+    h+=`<div class="hbox ${hidOpen?'on':''}" id="hbox"><div class="hsec"><span>사진을 누르면 달력에 다시 나타나요</span><button data-unhide-day="${k}">모두 다시 보이기</button></div>`;
+    h+=`<div class="hgrid">${hl.map(p=>`<button data-unhide="${p.id}"><img src="${thumbUrl(p)}" alt=""><i>다시 보이기</i></button>`).join('')}</div></div>`;
   }
   $('#sBody').innerHTML=h;
   lbList=list;
@@ -514,6 +518,7 @@ function unhide(ids){
   build();render();toast(`${ids.length}장을 다시 보이게 했어요`);
 }
 $('#sBody').onclick=e=>{
+  const tg=e.target.closest('#htog');if(tg){hidOpen=!hidOpen;$('#hbox').classList.toggle('on',hidOpen);tg.classList.toggle('open',hidOpen);tg.firstChild.textContent=tg.firstChild.textContent.replace(hidOpen?'보기':'접기',hidOpen?'접기':'보기');if(hidOpen)setTimeout(()=>$('#hbox').scrollIntoView({behavior:'smooth',block:'nearest'}),50);return}
   const uh=e.target.closest('[data-unhide]');if(uh){unhide([uh.dataset.unhide]);return}
   const ud=e.target.closest('[data-unhide-day]');if(ud){unhide((hiddenByDay[ud.dataset.unhideDay]||[]).map(p=>p.id));return}
 const u=e.target.closest('[data-url]');if(u){N?N.openUrl(u.dataset.url):open(u.dataset.url);return}const b=e.target.closest('.hero [data-id]');if(b)openLb(b.dataset.id)};
