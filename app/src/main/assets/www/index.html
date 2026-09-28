@@ -181,7 +181,7 @@ svg{display:block}
     <h2 id="gTitle">내가 다녀온 곳이<br>달력이 됩니다</h2>
     <p id="gDesc">갤러리에서 위치가 기록된 사진만 골라<br>찍은 날짜 칸에 자동으로 채워드려요.</p>
     <button class="cta" id="gBtn">사진 접근 허용하기</button>
-    <small id="gNote">사진은 휴대폰 밖으로 나가지 않아요.<br>장소 이름을 찾을 때만 좌표가 OpenStreetMap으로 전송됩니다.</small>
+    <small id="gNote">사진은 휴대폰 밖으로 나가지 않아요.<br>장소 이름·지도를 불러올 때만 좌표가 지도 서비스로 전송됩니다.</small>
   </section>
 
   <section class="view on" id="vCal">
@@ -316,6 +316,13 @@ function placeFrom(j){const a=j.address||{};
   const city=a.city||a.province||a.state||'';
   const region=[...new Set([city,dist,area].filter(Boolean))].join(' ');
   return {short:name||area||dist||city||'이름 없는 장소',region:name?region:[city,dist].filter(Boolean).join(' ')}}
+/* 장소 이름은 앱(네이티브)이 가져옴: OpenStreetMap → 실패 시 휴대폰 기본 지오코더 */
+const revWait={};
+window.onReverse=(k,json)=>{const f=revWait[k];delete revWait[k];if(!f)return;try{f(json?JSON.parse(json):null)}catch(e){f(null)}};
+function reverseGeo(k,lat,lng){
+  if(N&&N.reverse)return new Promise(res=>{revWait[k]=res;N.reverse(k,lat,lng)});
+  return fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=ko`).then(r=>r.ok?r.json():null).catch(()=>null);
+}
 async function geocodeQueue(){
   if(geoRunning)return;geoRunning=true;
   try{
@@ -327,12 +334,11 @@ async function geocodeQueue(){
       if(geo.has(k))continue;
       const p=photos.find(x=>geoKey(x.lat,x.lng)===k);if(!p)continue;
       try{
-        const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lng}&zoom=18&addressdetails=1&accept-language=ko`);
-        if(!r.ok)throw new Error(r.status);
-        const g={k,...placeFrom(await r.json())};geo.set(k,g);st('geo','readwrite').put(g);fails=0;
+        const j=await reverseGeo(k,p.lat,p.lng);
+        if(!j)throw new Error('none');
+        const g={k,...placeFrom(j)};geo.set(k,g);st('geo','readwrite').put(g);fails=0;
         build();renderSoon();
-      }catch(e){if(++fails>4)break;await sleep(3000)}
-      await sleep(1100);
+      }catch(e){if(++fails>4)break;await sleep(2000)}
     }
   }finally{geoRunning=false}
 }
@@ -379,7 +385,7 @@ function renderAlb(mp){
 }
 
 let mainMap,mainLayer;
-const tiles=()=>L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© OpenStreetMap © CARTO'});
+const tiles=()=>L.tileLayer(N?'/tile/{z}/{x}/{y}':'https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
 function renderMap(mp){
   if(!mainMap){mainMap=L.map('map',{zoomControl:false});tiles().addTo(mainMap);mainLayer=L.layerGroup().addTo(mainMap);mainMap.setView([36.4,127.9],7)}
   setTimeout(()=>mainMap.invalidateSize(),60);

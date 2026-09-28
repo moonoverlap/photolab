@@ -30,6 +30,7 @@ class MainActivity : Activity() {
 
     private lateinit var web: WebView
     private lateinit var scanner: PhotoScanner
+    private lateinit var geocoder: ReverseGeocoder
     private val main = Handler(Looper.getMainLooper())
     private val io = Executors.newSingleThreadExecutor()
     private val scanning = AtomicBoolean(false)
@@ -52,10 +53,12 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         scanner = PhotoScanner(this)
+        geocoder = ReverseGeocoder(this)
 
         val loader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
             .addPathHandler("/media/", MediaPathHandler(this))
+            .addPathHandler("/tile/", TilePathHandler(this))
             .build()
 
         web = WebView(this)
@@ -109,6 +112,7 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         contentResolver.unregisterContentObserver(observer)
         io.shutdownNow()
+        geocoder.shutdown()
         web.destroy()
         super.onDestroy()
     }
@@ -204,6 +208,15 @@ class MainActivity : Activity() {
 
         @JavascriptInterface
         fun resetCache() = scanner.resetCache()
+
+        @JavascriptInterface
+        fun reverse(key: String, lat: Double, lng: Double) {
+            val k = JSONObject.quote(key)
+            geocoder.request(lat, lng) { json ->
+                val payload = if (json == null) "null" else JSONObject.quote(json)
+                js("window.onReverse && onReverse($k,$payload)")
+            }
+        }
     }
 
     companion object {
