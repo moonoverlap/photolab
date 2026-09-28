@@ -122,6 +122,15 @@ svg{display:block}
 .memo-box label{display:block;font-size:12px;font-weight:700;color:var(--sub);margin-bottom:6px}
 .memo-box textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:14px;background:var(--soft);padding:12px 14px;font:inherit;font-size:14px;line-height:1.5;color:var(--ink);resize:none;outline:none;user-select:text}
 .memo-box textarea:focus{border-color:var(--blue);background:#fff}
+.hsec{display:flex;align-items:center;justify-content:space-between;margin:26px 18px 10px}
+.hsec span{font-size:12px;font-weight:700;color:var(--sub)}
+.hsec button{font-size:12px;font-weight:700;color:var(--blue);background:var(--blue-50);border-radius:8px;padding:6px 10px}
+.hgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0 18px}
+.hgrid button{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--soft)}
+.hgrid img{width:100%;height:100%;object-fit:cover;opacity:.45;filter:grayscale(.5)}
+.hgrid i{position:absolute;inset:auto 0 0 0;font-style:normal;font-size:10px;font-weight:700;color:#fff;background:rgba(41,91,255,.9);padding:4px 0;text-align:center}
+.hnote{font-size:12px;color:var(--mute);padding:8px 18px 0}
+.c.hd .hx{position:absolute;right:5px;bottom:5px;width:14px;height:14px;color:var(--mute)}
 .sec{margin:22px 18px 10px;font-size:12px;font-weight:700;color:var(--sub)}
 #dayMap{height:170px;margin:0 18px 14px;border-radius:16px;overflow:hidden;background:var(--soft)}
 .stop{display:flex;align-items:center;gap:10px;padding:10px 18px}
@@ -256,7 +265,10 @@ let raw=[],photos=[],geo=new Map(),memos=new Map(),hidden=new Set();
 let cur=new Date();cur=new Date(cur.getFullYear(),cur.getMonth(),1);
 let view='cal',openDay=null,lbList=[],lbIdx=0,perm='none',scanning=false,lastScan=0,firstResult=true;
 
+let hiddenByDay={};
 function build(){
+  hiddenByDay={};
+  for(const p of raw)if(hidden.has(p.id)){const k=dayKey(new Date(p.ts));(hiddenByDay[k]||=[]).push(p)}
   photos=raw.filter(p=>!hidden.has(p.id)).map(p=>{const d=new Date(p.ts);const g=geo.get(geoKey(p.lat,p.lng));
     return {...p,day:dayKey(d),place:g?g.short:null,region:g?g.region:null}});
 }
@@ -375,7 +387,8 @@ function renderCal(mp){
     if(list){
       const cover=list.find(p=>p.place)||list[0],pls=places(list);
       h+=`<button class="${cls}" data-day="${k}">${imgTag(thumbUrl(cover))}<span class="d">${d}</span>${list.length>1?`<span class="n">${list.length}</span>`:''}${pls.length?`<span class="pl">${esc(pls[0])}</span>`:''}${hasMemo?'<i class="memo"></i>':''}</button>`;
-    }else h+=`<div class="${cls}"><span class="d">${d}</span>${hasMemo?'<i class="memo"></i>':''}</div>`;
+    }else if(hiddenByDay[k])h+=`<button class="${cls} hd" data-day="${k}"><span class="d">${d}</span><svg class="hx" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M17.9 17.9A10 10 0 0 1 12 20c-7 0-10-8-10-8a18 18 0 0 1 5.1-5.9M9.9 4.2A9 9 0 0 1 12 4c7 0 10 8 10 8a18 18 0 0 1-2.2 3.2M1 1l22 22"/></svg></button>`;
+    else h+=`<div class="${cls}"><span class="d">${d}</span>${hasMemo?'<i class="memo"></i>':''}</div>`;
   }
   setHTML($('#grid'),h);
 }
@@ -416,12 +429,13 @@ function renderDay(k){
   const list=photos.filter(p=>p.day===k).sort((a,b)=>a.ts-b.ts);
   const d=new Date(k+'T00:00:00'),pl=places(list);
   $('#sTitle').textContent=`${d.getMonth()+1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일`;
-  $('#sSub').textContent=list.length?`사진 ${list.length}장 · ${pl.length?`장소 ${pl.length}곳`:'장소 확인 중'} · ${fmtTime(list[0].ts)} ~ ${fmtTime(list[list.length-1].ts)}`:'이 날은 위치 사진이 없어요';
+  $('#sSub').textContent=list.length?`사진 ${list.length}장 · ${pl.length?`장소 ${pl.length}곳`:'장소 확인 중'} · ${fmtTime(list[0].ts)} ~ ${fmtTime(list[list.length-1].ts)}`:(hiddenByDay[k]?`보이는 사진 없음 · 숨긴 사진 ${hiddenByDay[k].length}장`:'이 날은 위치 사진이 없어요');
   const ta=$('#memoTa');const keepFocus=ta&&document.activeElement===ta&&$('#sheet').dataset.day===k;
   if(keepFocus)return; // 입력 중엔 다시 그리지 않음
   const groups=[];
   for(const p of list){const key=p.place?'p:'+p.place:'g:'+geoKey(p.lat,p.lng);const g=groups[groups.length-1];if(g&&g.key===key)g.items.push(p);else groups.push({key,items:[p]})}
-  const sh=$('#sheet'),skey=k+'|'+list.map(p=>p.id).join(','),sig=skey+'|'+list.map(p=>p.place||'').join(',');
+  const hl=(hiddenByDay[k]||[]).slice().sort((a,b)=>a.ts-b.ts);
+  const sh=$('#sheet'),skey=k+'|'+list.map(p=>p.id).join(',')+'|h:'+hl.map(p=>p.id).join(','),sig=skey+'|'+list.map(p=>p.place||'').join(',');
   if(sh.dataset.sig===sig)return; // 바뀐 게 없으면 그대로
   const stopsHTML=groups.map((g,i)=>{const p=g.items[0],last=g.items[g.items.length-1];
       return `<div class="stop"><span class="k">${i+1}</span><div class="t"><b>${esc(p.place||'장소 이름 찾는 중…')}</b><span>${esc([p.region,fmtTime(p.ts)+(last.ts!==p.ts?` ~ ${fmtTime(last.ts)}`:''),g.items.length+'장'].filter(Boolean).join(' · '))}</span></div><div class="th">${g.items.slice(0,3).map(q=>`<img src="${thumbUrl(q)}" alt="">`).join('')}</div></div>${links(p)}`}).join('');
@@ -440,6 +454,11 @@ function renderDay(k){
   h+=`<div class="memo-box"><label>오늘의 한 줄</label><textarea id="memoTa" rows="2" placeholder="이 날을 한 줄로 남겨보세요">${esc(memos.get(k)||'')}</textarea></div>`;
   if(list.length){
     h+=`<div class="sec">이동한 곳</div><div id="stops">${stopsHTML}</div>`;
+  }
+  if(hl.length){
+    h+=`<div class="hsec"><span>숨긴 사진 ${hl.length}장</span><button data-unhide-day="${k}">모두 다시 보이기</button></div>`;
+    h+=`<div class="hgrid">${hl.map(p=>`<button data-unhide="${p.id}"><img src="${thumbUrl(p)}" alt=""><i>다시 보이기</i></button>`).join('')}</div>`;
+    h+=`<div class="hnote">사진을 누르면 달력에 다시 나타나요</div>`;
   }
   $('#sBody').innerHTML=h;
   lbList=list;
@@ -489,7 +508,15 @@ $('#prev').onclick=()=>shift(-1);$('#next').onclick=()=>shift(1);
 document.querySelector('.tabs').onclick=e=>{const b=e.target.closest('[data-v]');if(b)setView(b.dataset.v)};
 $('#grid').onclick=e=>{const c=e.target.closest('[data-day]');if(c)openDayPanel(c.dataset.day)};
 $('#alb').onclick=e=>{const b=e.target.closest('[data-id]');if(b)openLb(b.dataset.id,photos.filter(p=>p.day===b.dataset.day).sort((a,b)=>a.ts-b.ts))};
-$('#sBody').onclick=e=>{const u=e.target.closest('[data-url]');if(u){N?N.openUrl(u.dataset.url):open(u.dataset.url);return}const b=e.target.closest('.hero [data-id]');if(b)openLb(b.dataset.id)};
+function unhide(ids){
+  const t=db.transaction('hidden','readwrite'),o=t.objectStore('hidden');
+  ids.forEach(id=>{hidden.delete(id);o.delete(id)});
+  build();render();toast(`${ids.length}장을 다시 보이게 했어요`);
+}
+$('#sBody').onclick=e=>{
+  const uh=e.target.closest('[data-unhide]');if(uh){unhide([uh.dataset.unhide]);return}
+  const ud=e.target.closest('[data-unhide-day]');if(ud){unhide((hiddenByDay[ud.dataset.unhideDay]||[]).map(p=>p.id));return}
+const u=e.target.closest('[data-url]');if(u){N?N.openUrl(u.dataset.url):open(u.dataset.url);return}const b=e.target.closest('.hero [data-id]');if(b)openLb(b.dataset.id)};
 $('#lbInfo').onclick=e=>{const u=e.target.closest('[data-url]');if(u)N?N.openUrl(u.dataset.url):open(u.dataset.url)};
 $('#sClose').onclick=$('#scrim').onclick=closeDay;
 $('#lbClose').onclick=closeLb;$('#lbHide').onclick=hideCurrent;
