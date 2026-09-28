@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>사진 달력</title>
+<link rel="stylesheet" href="lib/leaflet.css">
+<script src="lib/leaflet.js"></script>
+<style>
+@font-face{font-family:Pretendard;src:url(lib/PretendardVariable.woff2) format('woff2-variations');font-weight:45 920;font-display:swap}
+:root{
+  --blue:#295BFF;--blue-600:#1E47E0;--blue-50:#EEF2FF;--blue-100:#DCE4FF;
+  --ink:#111827;--sub:#6B7280;--mute:#A3AAB8;--line:#EDF0F5;--bg:#FFFFFF;--soft:#F5F7FB;
+  --sun:#E5484D;--sat:#295BFF;--tab:64px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg)}
+body{font-family:Pretendard,system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;letter-spacing:-.02em;overscroll-behavior:none;user-select:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+img{display:block}
+svg{display:block}
+
+/* ---------- 상단 ---------- */
+.hd{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.96);backdrop-filter:blur(12px);padding:14px 18px 8px}
+.hd-row{display:flex;align-items:flex-end;gap:6px}
+.mt{display:flex;align-items:baseline;gap:8px}
+.mt b{font-size:30px;font-weight:800;letter-spacing:-.04em;line-height:1}
+.mt span{font-size:15px;font-weight:600;color:var(--mute)}
+.hd-row .sp{flex:1}
+.ib{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:var(--sub)}
+.ib:active{background:var(--soft)}
+.sum{margin-top:8px;font-size:13px;color:var(--sub);display:flex;align-items:center;gap:8px;min-height:18px}
+.sum b{color:var(--ink);font-weight:700}
+.sync{display:none;align-items:center;gap:5px;color:var(--blue);font-weight:600;font-size:12px}
+.sync.on{display:inline-flex}
+.sync i{width:12px;height:12px;border:2px solid var(--blue-100);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pbar{height:2px;background:transparent;margin:6px -18px 0}
+.pbar i{display:block;height:100%;width:0;background:var(--blue);transition:width .25s}
+
+.banner{display:none;margin:4px 14px 8px;background:var(--blue-50);border-radius:14px;padding:12px 14px;font-size:13px;line-height:1.45;color:var(--ink);align-items:center;gap:10px}
+.banner.on{display:flex}
+.banner p{flex:1}
+.banner button{flex:none;background:var(--blue);color:#fff;font-weight:700;font-size:13px;border-radius:10px;padding:8px 12px}
+
+/* ---------- 캘린더 ---------- */
+.page{padding-bottom:calc(var(--tab) + 24px)}
+.view{display:none}.view.on{display:block}
+.wk{display:grid;grid-template-columns:repeat(7,1fr);padding:4px 10px 6px}
+.wk div{font-size:11px;font-weight:700;color:var(--mute);text-align:center}
+.wk div:first-child{color:var(--sun)}.wk div:last-child{color:var(--sat)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:0 10px}
+.c{position:relative;aspect-ratio:3/4.4;border-radius:8px;overflow:hidden;background:var(--soft)}
+.c.bl{background:transparent}
+.c .d{position:absolute;top:5px;left:6px;font-size:11px;font-weight:700;color:var(--mute);z-index:2}
+.c.sun .d{color:#F08A8D}.c.sat .d{color:#7C9BFF}
+.c.td{box-shadow:inset 0 0 0 2px var(--blue)}
+.c.td .d{color:var(--blue)}
+.c.ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .25s}
+.c.ph img.ld{opacity:1}
+.c.ph::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.28),rgba(0,0,0,0) 30%,rgba(0,0,0,0) 62%,rgba(0,0,0,.5));pointer-events:none}
+.c.ph .d{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.35)}
+.c.ph.td{box-shadow:none;outline:2px solid var(--blue);outline-offset:1px}
+.c .n{position:absolute;top:5px;right:5px;z-index:2;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:rgba(17,24,39,.42);color:#fff;font-size:9px;font-weight:700;display:grid;place-items:center}
+.c .pl{position:absolute;left:5px;right:4px;bottom:4px;z-index:2;color:#fff;font-size:9px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.c .memo{position:absolute;bottom:5px;right:5px;z-index:2;width:6px;height:6px;border-radius:50%;background:#FFD166}
+.c:not(.ph) .memo{background:var(--blue)}
+.c.ph:active{transform:scale(.97)}
+
+/* ---------- 빈 화면 / 권한 ---------- */
+.gate{display:none;min-height:calc(100vh - 160px);flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 28px}
+.gate.on{display:flex}
+.gate .art{width:112px;height:112px;border-radius:32px;background:var(--blue-50);display:grid;place-items:center;margin-bottom:22px}
+.gate h2{font-size:21px;font-weight:800;line-height:1.35;margin-bottom:10px}
+.gate p{font-size:14px;color:var(--sub);line-height:1.6}
+.gate .cta{margin-top:26px;width:100%;max-width:320px;height:52px;border-radius:14px;background:var(--blue);color:#fff;font-weight:700;font-size:16px}
+.gate small{margin-top:14px;font-size:12px;color:var(--mute);line-height:1.6}
+
+/* ---------- 앨범 ---------- */
+.alb{padding:0 14px}
+.ad{padding:18px 0 10px;display:flex;align-items:baseline;gap:8px}
+.ad b{font-size:17px;font-weight:800}
+.ad span{font-size:13px;color:var(--sub);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ad em{font-style:normal;font-size:12px;color:var(--mute)}
+.am{font-size:13px;color:var(--ink);background:var(--soft);border-radius:12px;padding:10px 12px;margin-bottom:8px;line-height:1.5;white-space:pre-wrap}
+.ag{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;border-radius:12px;overflow:hidden}
+.ag button{aspect-ratio:1;background:var(--soft);overflow:hidden}
+.ag img{width:100%;height:100%;object-fit:cover}
+.none{padding:80px 20px;text-align:center;color:var(--mute);font-size:14px}
+
+/* ---------- 지도 ---------- */
+#map{height:calc(100vh - 150px - var(--tab));margin:0 14px;border-radius:18px;overflow:hidden;background:var(--soft)}
+.pin{width:44px;height:44px;border-radius:12px;border:3px solid #fff;box-shadow:0 4px 14px rgba(17,24,39,.28);overflow:hidden;background:#ddd;position:relative}
+.pin img{width:100%;height:100%;object-fit:cover}
+.pin b{position:absolute;right:0;bottom:0;background:var(--blue);color:#fff;font-size:10px;font-weight:700;border-radius:6px 0 0 0;padding:1px 4px}
+.num{width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;border:2px solid #fff;font-size:11px;font-weight:800;display:grid;place-items:center;box-shadow:0 2px 8px rgba(17,24,39,.3)}
+.leaflet-container{font-family:Pretendard,system-ui,sans-serif}
+
+/* ---------- 하단 탭 ---------- */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;height:var(--tab);background:rgba(255,255,255,.97);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);padding-bottom:env(safe-area-inset-bottom)}
+.tabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:600;color:var(--mute)}
+.tabs button.on{color:var(--blue)}
+
+/* ---------- 날짜 시트 ---------- */
+.scrim{position:fixed;inset:0;background:rgba(17,24,39,.4);opacity:0;pointer-events:none;transition:opacity .22s;z-index:60}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:70;height:92vh;background:#fff;border-radius:24px 24px 0 0;transform:translateY(100%);transition:transform .3s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column}
+.sheet.on{transform:none}
+.grab{width:40px;height:4px;border-radius:4px;background:var(--line);margin:10px auto 0;flex:none}
+.sh{padding:12px 18px 10px;display:flex;align-items:flex-start;gap:8px;flex:none}
+.sh h3{font-size:22px;font-weight:800;letter-spacing:-.04em}
+.sh p{font-size:13px;color:var(--sub);margin-top:3px}
+.sh .ib{margin-left:auto}
+.sb{overflow-y:auto;flex:1;padding:0 0 40px}
+.hero{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:8px;padding:2px 18px 4px;scrollbar-width:none}
+.hero::-webkit-scrollbar{display:none}
+.hero button{flex:none;width:78%;aspect-ratio:4/5;border-radius:18px;overflow:hidden;scroll-snap-align:center;background:var(--soft);position:relative}
+.hero button:only-child{width:100%}
+.hero img{width:100%;height:100%;object-fit:cover}
+.hero span{position:absolute;left:12px;bottom:10px;color:#fff;font-size:12px;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+.memo-box{margin:16px 18px 0}
+.memo-box label{display:block;font-size:12px;font-weight:700;color:var(--sub);margin-bottom:6px}
+.memo-box textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:14px;background:var(--soft);padding:12px 14px;font:inherit;font-size:14px;line-height:1.5;color:var(--ink);resize:none;outline:none;user-select:text}
+.memo-box textarea:focus{border-color:var(--blue);background:#fff}
+.sec{margin:22px 18px 10px;font-size:12px;font-weight:700;color:var(--sub)}
+#dayMap{height:170px;margin:0 18px 14px;border-radius:16px;overflow:hidden;background:var(--soft)}
+.stop{display:flex;align-items:center;gap:10px;padding:10px 18px}
+.stop .k{flex:none;width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center}
+.stop .t{flex:1;min-width:0}
+.stop .t b{display:block;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stop .t span{font-size:12px;color:var(--sub)}
+.stop .th{flex:none;display:flex;gap:3px}
+.stop .th img{width:36px;height:36px;border-radius:8px;object-fit:cover;background:var(--soft)}
+.links{display:flex;gap:6px;padding:0 18px 6px 52px}
+.links button{font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-50);border-radius:8px;padding:6px 9px}
+
+/* ---------- 크게 보기 ---------- */
+.lb{position:fixed;inset:0;background:#0B0D14;z-index:100;display:none;flex-direction:column}
+.lb.on{display:flex}
+.lb-top{display:flex;align-items:center;gap:6px;padding:10px 12px;color:#fff}
+.lb-top .ib{color:#fff}
+.lb-top .cnt{font-size:13px;opacity:.7;margin-right:auto;padding-left:6px}
+.lb-img{flex:1;min-height:0;display:grid;place-items:center;overflow:hidden;touch-action:pan-y}
+.lb-img img{max-width:100%;max-height:100%;object-fit:contain}
+.lb-info{padding:14px 18px 22px;color:#fff}
+.lb-info b{display:block;font-size:17px;font-weight:700}
+.lb-info span{display:block;font-size:13px;opacity:.65;margin-top:3px}
+.lb-info .links{padding:12px 0 0}
+.lb-info .links button{background:rgba(255,255,255,.14);color:#fff}
+
+/* ---------- 메뉴 ---------- */
+.menu{position:fixed;left:12px;right:12px;bottom:12px;z-index:90;background:#fff;border-radius:20px;padding:8px;transform:translateY(130%);transition:transform .25s}
+.menu.on{transform:none}
+.menu button{display:block;width:100%;text-align:left;padding:15px 14px;font-size:15px;font-weight:600;border-radius:12px}
+.menu button:active{background:var(--soft)}
+.menu .cancel{text-align:center;color:var(--sub)}
+
+.toast{position:fixed;left:50%;bottom:calc(var(--tab) + 14px);transform:translate(-50%,16px);background:var(--ink);color:#fff;font-size:13px;font-weight:600;padding:11px 16px;border-radius:12px;opacity:0;transition:.25s;z-index:200;pointer-events:none;white-space:nowrap}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div class="hd-row">
+    <div class="mt"><b id="mNum"></b><span id="mYear"></span></div>
+    <div class="sp"></div>
+    <button class="ib" id="prev" aria-label="이전 달"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <button class="ib" id="next" aria-label="다음 달"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+    <button class="ib" id="more" aria-label="메뉴"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+  </div>
+  <div class="sum"><span id="sum"></span><span class="sync" id="sync"><i></i><em id="syncTxt" style="font-style:normal">갤러리 확인 중</em></span></div>
+  <div class="pbar"><i id="pbar"></i></div>
+</header>
+
+<div class="banner" id="banner"><p id="bannerTxt"></p><button id="bannerBtn"></button></div>
+
+<main class="page">
+  <section class="gate" id="gate">
+    <div class="art"><svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="#295BFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M12 12.2c-1.6 0-2.8 1.2-2.8 2.7 0 2 2.8 4.1 2.8 4.1s2.8-2.1 2.8-4.1c0-1.5-1.2-2.7-2.8-2.7z" fill="#DCE4FF"/></svg></div>
+    <h2 id="gTitle">내가 다녀온 곳이<br>달력이 됩니다</h2>
+    <p id="gDesc">갤러리에서 위치가 기록된 사진만 골라<br>찍은 날짜 칸에 자동으로 채워드려요.</p>
+    <button class="cta" id="gBtn">사진 접근 허용하기</button>
+    <small id="gNote">사진은 휴대폰 밖으로 나가지 않아요.<br>장소 이름을 찾을 때만 좌표가 OpenStreetMap으로 전송됩니다.</small>
+  </section>
+
+  <section class="view on" id="vCal">
+    <div class="wk"><div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div></div>
+    <div class="grid" id="grid"></div>
+  </section>
+  <section class="view" id="vAlb"><div class="alb" id="alb"></div></section>
+  <section class="view" id="vMap"><div id="map"></div></section>
+</main>
+
+<nav class="tabs">
+  <button class="on" data-v="cal"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>캘린더</button>
+  <button data-v="alb"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>앨범</button>
+  <button data-v="map"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>지도</button>
+</nav>
+
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="sheet">
+  <div class="grab"></div>
+  <div class="sh">
+    <div><h3 id="sTitle"></h3><p id="sSub"></p></div>
+    <button class="ib" id="sClose" aria-label="닫기"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="sb" id="sBody"></div>
+</aside>
+
+<div class="lb" id="lb">
+  <div class="lb-top">
+    <span class="cnt" id="lbCnt"></span>
+    <button class="ib" id="lbHide" aria-label="달력에서 숨기기"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10 10 0 0 1 12 20c-7 0-10-8-10-8a18 18 0 0 1 5.1-5.9M9.9 4.2A9 9 0 0 1 12 4c7 0 10 8 10 8a18 18 0 0 1-2.2 3.2M1 1l22 22"/></svg></button>
+    <button class="ib" id="lbClose" aria-label="닫기"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="lb-img" id="lbWrap"><img id="lbImg" alt=""></div>
+  <div class="lb-info" id="lbInfo"></div>
+</div>
+
+<div class="scrim" id="mScrim" style="z-index:85"></div>
+<div class="menu" id="menu">
+  <button id="mToday">오늘로 이동</button>
+  <button id="mRescan">갤러리 다시 확인</button>
+  <button id="mUnhide">숨긴 사진 다시 보이기</button>
+  <button id="mPerm">사진 권한 설정 열기</button>
+  <button class="cancel" id="mCancel">닫기</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const N=window.Android;
+const pad=n=>String(n).padStart(2,'0');
+const WD=['일','월','화','수','목','금','토'];
+const dayKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const fmtTime=ts=>{const d=new Date(ts);const h=d.getHours();return `${h<12?'오전':'오후'} ${h%12||12}:${pad(d.getMinutes())}`};
+const geoKey=(a,b)=>a.toFixed(3)+','+b.toFixed(3);
+const thumbUrl=p=>`/media/thumb/${p.id}`;
+const fullUrl=p=>`/media/full/${p.id}`;
+const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+/* ---------- IndexedDB: 장소 이름·메모·숨김 ---------- */
+let db;
+const req2p=r=>new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open('photoCalendarApp',1);
+  r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('geo',{keyPath:'k'});d.createObjectStore('memo',{keyPath:'day'});d.createObjectStore('hidden',{keyPath:'id'})};
+  r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+const st=(n,m='readonly')=>db.transaction(n,m).objectStore(n);
+
+/* ---------- state ---------- */
+let raw=[],photos=[],geo=new Map(),memos=new Map(),hidden=new Set();
+let cur=new Date();cur=new Date(cur.getFullYear(),cur.getMonth(),1);
+let view='cal',openDay=null,lbList=[],lbIdx=0,perm='none',scanning=false,lastScan=0,firstResult=true;
+
+function build(){
+  photos=raw.filter(p=>!hidden.has(p.id)).map(p=>{const d=new Date(p.ts);const g=geo.get(geoKey(p.lat,p.lng));
+    return {...p,day:dayKey(d),place:g?g.short:null,region:g?g.region:null}});
+}
+
+/* ---------- 네이티브 스캔 ---------- */
+function startScan(force){
+  if(!N||perm==='none'||scanning)return;
+  if(!force&&Date.now()-lastScan<15000)return;
+  if(N.scan()){scanning=true;setSync(true,'갤러리 확인 중')}
+}
+window.onNativeProgress=(d,t)=>{if(t>0){$('#pbar').style.width=`${Math.min(100,d/t*100)}%`;if(t>300)$('#syncTxt').textContent=`갤러리 확인 중 ${Math.round(d/t*100)}%`}};
+window.onNativeResult=json=>{
+  scanning=false;lastScan=Date.now();setSync(false);$('#pbar').style.width='0';
+  let r;try{r=JSON.parse(json)}catch(e){return}
+  const prevIds=new Set(raw.map(p=>p.id));
+  raw=r.photos||[];build();
+  const added=raw.filter(p=>!prevIds.has(p.id));
+  const seenCount=store.get('seenCount',null);
+  if(firstResult){
+    if(seenCount==null&&raw.length)toast(`위치 사진 ${raw.length}장을 찾았어요 · 위치 없는 ${r.noGps}장 제외`);
+    else if(seenCount!=null&&raw.length>seenCount)toast(`새 위치 사진 ${raw.length-seenCount}장`);
+    if(raw.length){const l=raw[0];const d=new Date(Math.max(...raw.map(p=>p.ts)));if(!monthPhotos().length)cur=new Date(d.getFullYear(),d.getMonth(),1)}
+  }else if(added.length){toast(`새 위치 사진 ${added.length}장`);const d=new Date(Math.max(...added.map(p=>p.ts)));cur=new Date(d.getFullYear(),d.getMonth(),1)}
+  store.set('seenCount',raw.length);firstResult=false;
+  render();geocodeQueue();
+};
+window.onNativeError=m=>{scanning=false;setSync(false);toast('갤러리를 읽지 못했어요')};
+window.onPermission=s=>{perm=s;updatePerm();if(s!=='none')startScan(true)};
+window.onAppResume=()=>{if(N){const s=N.permState();if(s!==perm){perm=s;updatePerm()}}startScan(false)};
+window.onGalleryChanged=()=>startScan(true);
+window.handleBack=()=>{
+  if($('#lb').classList.contains('on')){closeLb();return true}
+  if($('#menu').classList.contains('on')){closeMenu();return true}
+  if(openDay){closeDay();return true}
+  if(view!=='cal'){setView('cal');return true}
+  return false;
+};
+
+function updatePerm(){
+  const gate=perm==='none'||!N;
+  $('#gate').classList.toggle('on',gate);
+  document.querySelectorAll('.view').forEach(v=>v.style.display=gate?'none':'');
+  if(!N){$('#gTitle').innerHTML='안드로이드 앱에서<br>실행해주세요';$('#gDesc').textContent='이 화면은 사진 달력 앱 안에서 동작합니다.';$('#gBtn').style.display='none'}
+  const b=$('#banner');
+  if(perm==='partial'){$('#bannerTxt').textContent='일부 사진만 허용되어 있어요. 전체를 허용하면 갤러리 전체가 자동으로 반영돼요.';$('#bannerBtn').textContent='전체 허용';b.classList.add('on');b.dataset.act='req'}
+  else if(perm==='noloc'){$('#bannerTxt').textContent='사진 위치 접근이 꺼져 있어 장소를 읽을 수 없어요.';$('#bannerBtn').textContent='설정 열기';b.classList.add('on');b.dataset.act='settings'}
+  else b.classList.remove('on');
+  if(!gate)render();
+}
+
+/* ---------- 장소 이름 (Nominatim, 초당 1건) ---------- */
+let geoRunning=false;
+function placeFrom(j){const a=j.address||{};
+  const name=j.name||a.amenity||a.tourism||a.leisure||a.shop||a.building||a.attraction||a.historic||'';
+  const area=a.neighbourhood||a.quarter||a.suburb||a.village||a.town||'';
+  const dist=a.borough||a.city_district||a.county||'';
+  const city=a.city||a.province||a.state||'';
+  const region=[...new Set([city,dist,area].filter(Boolean))].join(' ');
+  return {short:name||area||dist||city||'이름 없는 장소',region:name?region:[city,dist].filter(Boolean).join(' ')}}
+async function geocodeQueue(){
+  if(geoRunning)return;geoRunning=true;
+  try{
+    // 지금 보고 있는 달부터 먼저
+    const mk=monthKey();
+    const todo=[...new Set(photos.filter(p=>!p.place).sort((a,b)=>(b.day.startsWith(mk)-a.day.startsWith(mk))||b.ts-a.ts).map(p=>geoKey(p.lat,p.lng)))];
+    let fails=0;
+    for(const k of todo){
+      if(geo.has(k))continue;
+      const p=photos.find(x=>geoKey(x.lat,x.lng)===k);if(!p)continue;
+      try{
+        const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lng}&zoom=18&addressdetails=1&accept-language=ko`);
+        if(!r.ok)throw new Error(r.status);
+        const g={k,...placeFrom(await r.json())};geo.set(k,g);st('geo','readwrite').put(g);fails=0;
+        build();renderSoon();
+      }catch(e){if(++fails>4)break;await sleep(3000)}
+      await sleep(1100);
+    }
+  }finally{geoRunning=false}
+}
+
+/* ---------- helpers ---------- */
+function byDay(list){const o={};for(const p of list)(o[p.day]||=[]).push(p);for(const k in o)o[k].sort((a,b)=>a.ts-b.ts);return o}
+function places(list){const c={};for(const p of list)if(p.place)c[p.place]=(c[p.place]||0)+1;return Object.entries(c).sort((a,b)=>b[1]-a[1]).map(e=>e[0])}
+function monthKey(){return `${cur.getFullYear()}-${pad(cur.getMonth()+1)}`}
+function monthPhotos(){const k=monthKey()+'-';return photos.filter(p=>p.day.startsWith(k))}
+function links(p){
+  const q=encodeURIComponent([p.region,p.place].filter(Boolean).join(' ')||`${p.lat},${p.lng}`);
+  const n=encodeURIComponent(p.place||'사진 위치');
+  return `<div class="links"><button data-url="https://map.naver.com/p/search/${q}">네이버지도</button><button data-url="https://map.kakao.com/link/map/${n},${p.lat},${p.lng}">카카오맵</button><button data-url="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}">구글지도</button></div>`}
+let rsT;function renderSoon(){clearTimeout(rsT);rsT=setTimeout(render,350)}
+const imgTag=(src,extra='')=>`<img src="${src}" alt="" loading="lazy" onload="this.classList.add('ld')" ${extra}>`;
+
+/* ---------- render ---------- */
+function render(){
+  $('#mNum').textContent=`${cur.getMonth()+1}월`;$('#mYear').textContent=cur.getFullYear();
+  const mp=monthPhotos(),pl=places(mp),days=new Set(mp.map(p=>p.day)).size;
+  $('#sum').innerHTML=photos.length?(mp.length?`기록한 날 <b>${days}일</b> · 사진 ${mp.length}장 · 장소 ${pl.length}곳`:'이번 달엔 위치 사진이 없어요'):(scanning?'':'위치가 기록된 사진이 아직 없어요');
+  if(view==='cal')renderCal(mp);else if(view==='alb')renderAlb(mp);else renderMap(mp);
+  if(openDay)renderDay(openDay);
+}
+function renderCal(mp){
+  const y=cur.getFullYear(),m=cur.getMonth(),first=new Date(y,m,1).getDay(),n=new Date(y,m+1,0).getDate();
+  const bd=byDay(mp),today=dayKey(new Date());let h='';
+  for(let i=0;i<first;i++)h+='<div class="c bl"></div>';
+  for(let d=1;d<=n;d++){
+    const k=`${y}-${pad(m+1)}-${pad(d)}`,wd=(first+d-1)%7,list=bd[k],hasMemo=memos.has(k);
+    const cls=['c',wd===0?'sun':'',wd===6?'sat':'',k===today?'td':'',list?'ph':''].join(' ');
+    if(list){
+      const cover=list.find(p=>p.place)||list[0],pls=places(list);
+      h+=`<button class="${cls}" data-day="${k}">${imgTag(thumbUrl(cover))}<span class="d">${d}</span>${list.length>1?`<span class="n">${list.length}</span>`:''}${pls.length?`<span class="pl">${esc(pls[0])}</span>`:''}${hasMemo?'<i class="memo"></i>':''}</button>`;
+    }else h+=`<div class="${cls}"><span class="d">${d}</span>${hasMemo?'<i class="memo"></i>':''}</div>`;
+  }
+  $('#grid').innerHTML=h;
+}
+function renderAlb(mp){
+  const bd=byDay(mp),keys=Object.keys(bd).sort().reverse();
+  if(!keys.length){$('#alb').innerHTML='<div class="none">이번 달엔 위치 사진이 없어요</div>';return}
+  $('#alb').innerHTML=keys.map(k=>{const l=bd[k],d=new Date(k+'T00:00:00'),pl=places(l),memo=memos.get(k);
+    return `<div class="ad"><b>${d.getMonth()+1}.${d.getDate()} (${WD[d.getDay()]})</b><span>${esc(pl.slice(0,3).join(' · '))}</span><em>${l.length}장</em></div>${memo?`<div class="am">${esc(memo)}</div>`:''}<div class="ag">${l.map(p=>`<button data-id="${p.id}" data-day="${k}">${imgTag(thumbUrl(p))}</button>`).join('')}</div>`}).join('');
+}
+
+let mainMap,mainLayer;
+const tiles=()=>L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© OpenStreetMap © CARTO'});
+function renderMap(mp){
+  if(!mainMap){mainMap=L.map('map',{zoomControl:false});tiles().addTo(mainMap);mainLayer=L.layerGroup().addTo(mainMap);mainMap.setView([36.4,127.9],7)}
+  setTimeout(()=>mainMap.invalidateSize(),60);
+  mainLayer.clearLayers();
+  const g={};for(const p of mp)(g[geoKey(p.lat,p.lng)]||=[]).push(p);
+  const pts=[];
+  for(const k in g){const l=g[k].sort((a,b)=>a.ts-b.ts),p=l[0];pts.push([p.lat,p.lng]);
+    L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:`<div class="pin"><img src="${thumbUrl(p)}">${l.length>1?`<b>${l.length}</b>`:''}</div>`,iconSize:[44,44],iconAnchor:[22,22]})}).addTo(mainLayer).on('click',()=>openDayPanel(p.day));
+  }
+  if(pts.length)mainMap.fitBounds(pts,{padding:[50,50],maxZoom:15});
+}
+
+/* ---------- 날짜 시트 ---------- */
+let dayMap,memoT;
+function openDayPanel(k){openDay=k;renderDay(k);$('#sheet').classList.add('on');$('#scrim').classList.add('on')}
+function closeDay(){
+  const ta=$('#memoTa');if(ta)saveMemo(openDay,ta.value);
+  openDay=null;$('#sheet').classList.remove('on');$('#scrim').classList.remove('on');render();
+}
+function saveMemo(day,text){
+  if(!day)return;text=text.trim();
+  if(text){memos.set(day,text);st('memo','readwrite').put({day,text})}else{memos.delete(day);st('memo','readwrite').delete(day)}
+}
+function renderDay(k){
+  const list=photos.filter(p=>p.day===k).sort((a,b)=>a.ts-b.ts);
+  const d=new Date(k+'T00:00:00'),pl=places(list);
+  $('#sTitle').textContent=`${d.getMonth()+1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일`;
+  $('#sSub').textContent=list.length?`사진 ${list.length}장 · ${pl.length?`장소 ${pl.length}곳`:'장소 확인 중'} · ${fmtTime(list[0].ts)} ~ ${fmtTime(list[list.length-1].ts)}`:'이 날은 위치 사진이 없어요';
+  const ta=$('#memoTa');const keepFocus=ta&&document.activeElement===ta&&$('#sheet').dataset.day===k;
+  if(keepFocus)return; // 입력 중엔 다시 그리지 않음
+  $('#sheet').dataset.day=k;
+  const groups=[];
+  for(const p of list){const key=p.place?'p:'+p.place:'g:'+geoKey(p.lat,p.lng);const g=groups[groups.length-1];if(g&&g.key===key)g.items.push(p);else groups.push({key,items:[p]})}
+  let h='';
+  if(list.length)h+=`<div class="hero">${list.map(p=>`<button data-id="${p.id}">${imgTag(fullUrl(p))}<span>${fmtTime(p.ts)}${p.place?' · '+esc(p.place):''}</span></button>`).join('')}</div>`;
+  h+=`<div class="memo-box"><label>오늘의 한 줄</label><textarea id="memoTa" rows="2" placeholder="이 날을 한 줄로 남겨보세요">${esc(memos.get(k)||'')}</textarea></div>`;
+  if(list.length){
+    h+=`<div class="sec">이동한 곳</div><div id="dayMap"></div>`;
+    groups.forEach((g,i)=>{const p=g.items[0],last=g.items[g.items.length-1];
+      h+=`<div class="stop"><span class="k">${i+1}</span><div class="t"><b>${esc(p.place||'장소 이름 찾는 중…')}</b><span>${esc([p.region,fmtTime(p.ts)+(last.ts!==p.ts?` ~ ${fmtTime(last.ts)}`:''),g.items.length+'장'].filter(Boolean).join(' · '))}</span></div><div class="th">${g.items.slice(0,3).map(q=>`<img src="${thumbUrl(q)}" alt="">`).join('')}</div></div>${links(p)}`});
+  }
+  $('#sBody').innerHTML=h;
+  lbList=list;
+  $('#memoTa').oninput=e=>{clearTimeout(memoT);const v=e.target.value;memoT=setTimeout(()=>saveMemo(k,v),500)};
+  if(dayMap){dayMap.remove();dayMap=null}
+  if(list.length){
+    dayMap=L.map('dayMap',{zoomControl:false,attributionControl:false,dragging:true});tiles().addTo(dayMap);
+    const pts=groups.map(g=>[g.items[0].lat,g.items[0].lng]);
+    groups.forEach((g,i)=>L.marker(pts[i],{icon:L.divIcon({className:'',html:`<div class="num">${i+1}</div>`,iconSize:[24,24],iconAnchor:[12,12]})}).addTo(dayMap));
+    if(pts.length>1)L.polyline(pts,{color:'#295BFF',weight:3,opacity:.7,dashArray:'6 6'}).addTo(dayMap);
+    setTimeout(()=>{if(!dayMap)return;dayMap.invalidateSize();pts.length>1?dayMap.fitBounds(pts,{padding:[26,26],maxZoom:16}):dayMap.setView(pts[0],15)},320);
+  }
+}
+
+/* ---------- 크게 보기 ---------- */
+function openLb(id,list){if(list)lbList=list;lbIdx=Math.max(0,lbList.findIndex(p=>p.id===id));showLb();$('#lb').classList.add('on')}
+function showLb(){
+  const p=lbList[lbIdx];if(!p)return closeLb();
+  const img=$('#lbImg');img.src=thumbUrl(p);const full=new Image();full.onload=()=>{if(lbList[lbIdx]===p)img.src=full.src};full.src=fullUrl(p);
+  $('#lbCnt').textContent=`${lbIdx+1} / ${lbList.length}`;
+  const d=new Date(p.ts);
+  $('#lbInfo').innerHTML=`<b>${esc(p.place||'장소 이름 찾는 중…')}</b><span>${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${WD[d.getDay()]} ${fmtTime(p.ts)}${p.region?' · '+esc(p.region):''}</span>${links(p)}`;
+}
+function closeLb(){$('#lb').classList.remove('on')}
+async function hideCurrent(){
+  const p=lbList[lbIdx];if(!p)return;
+  hidden.add(p.id);st('hidden','readwrite').put({id:p.id});
+  lbList=lbList.filter(x=>x.id!==p.id);if(lbIdx>=lbList.length)lbIdx=lbList.length-1;
+  build();render();lbList.length?showLb():closeLb();toast('달력에서 숨겼어요 · 원본은 그대로예요');
+}
+
+/* ---------- ui ---------- */
+let tT;function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(tT);tT=setTimeout(()=>e.classList.remove('on'),2800)}
+function setSync(on,t){$('#sync').classList.toggle('on',on);if(t)$('#syncTxt').textContent=t}
+function setView(v){view=v;document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  $('#vCal').classList.toggle('on',v==='cal');$('#vAlb').classList.toggle('on',v==='alb');$('#vMap').classList.toggle('on',v==='map');scrollTo(0,0);render()}
+function shift(n){cur=new Date(cur.getFullYear(),cur.getMonth()+n,1);render();geocodeQueue()}
+function openMenu(){$('#menu').classList.add('on');$('#mScrim').classList.add('on')}
+function closeMenu(){$('#menu').classList.remove('on');$('#mScrim').classList.remove('on')}
+
+$('#prev').onclick=()=>shift(-1);$('#next').onclick=()=>shift(1);
+document.querySelector('.tabs').onclick=e=>{const b=e.target.closest('[data-v]');if(b)setView(b.dataset.v)};
+$('#grid').onclick=e=>{const c=e.target.closest('[data-day]');if(c)openDayPanel(c.dataset.day)};
+$('#alb').onclick=e=>{const b=e.target.closest('[data-id]');if(b)openLb(b.dataset.id,photos.filter(p=>p.day===b.dataset.day).sort((a,b)=>a.ts-b.ts))};
+$('#sBody').onclick=e=>{const u=e.target.closest('[data-url]');if(u){N?N.openUrl(u.dataset.url):open(u.dataset.url);return}const b=e.target.closest('.hero [data-id]');if(b)openLb(b.dataset.id)};
+$('#lbInfo').onclick=e=>{const u=e.target.closest('[data-url]');if(u)N?N.openUrl(u.dataset.url):open(u.dataset.url)};
+$('#sClose').onclick=$('#scrim').onclick=closeDay;
+$('#lbClose').onclick=closeLb;$('#lbHide').onclick=hideCurrent;
+$('#gBtn').onclick=()=>N&&N.requestPermission();
+$('#bannerBtn').onclick=()=>{if(!N)return;$('#banner').dataset.act==='settings'?N.openSettings():N.requestPermission()};
+$('#more').onclick=openMenu;$('#mScrim').onclick=$('#mCancel').onclick=closeMenu;
+$('#mToday').onclick=()=>{closeMenu();const t=new Date();cur=new Date(t.getFullYear(),t.getMonth(),1);render()};
+$('#mRescan').onclick=()=>{closeMenu();startScan(true)};
+$('#mUnhide').onclick=()=>{closeMenu();if(!hidden.size){toast('숨긴 사진이 없어요');return}const n=hidden.size;hidden.clear();st('hidden','readwrite').clear();build();render();toast(`${n}장을 다시 보이게 했어요`)};
+$('#mPerm').onclick=()=>{closeMenu();N&&N.openSettings()};
+
+/* 스와이프: 달력 좌우 = 달 이동, 크게 보기 좌우 = 사진 이동 */
+function swipe(el,fn){let x=null,y=null;el.addEventListener('touchstart',e=>{x=e.touches[0].clientX;y=e.touches[0].clientY},{passive:true});
+  el.addEventListener('touchend',e=>{if(x==null)return;const dx=e.changedTouches[0].clientX-x,dy=e.changedTouches[0].clientY-y;if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)fn(dx<0?1:-1);x=null})}
+swipe($('#grid'),shift);swipe($('#alb'),shift);
+swipe($('#lbWrap'),d=>{const n=lbIdx+d;if(n>=0&&n<lbList.length){lbIdx=n;showLb()}});
+/* 시트 아래로 끌어 닫기 */
+(()=>{let y0=null;const s=$('#sheet');s.querySelector('.grab').parentElement;
+  s.addEventListener('touchstart',e=>{if($('#sBody').scrollTop<=0&&!e.target.closest('#dayMap,.hero,textarea'))y0=e.touches[0].clientY},{passive:true});
+  s.addEventListener('touchmove',e=>{if(y0==null)return;const dy=e.touches[0].clientY-y0;if(dy>0){s.style.transition='none';s.style.transform=`translateY(${dy}px)`}},{passive:true});
+  s.addEventListener('touchend',e=>{if(y0==null)return;const dy=e.changedTouches[0].clientY-y0;s.style.transition='';s.style.transform='';y0=null;if(dy>110)closeDay()});
+})();
+
+(async()=>{
+  db=await openDB();
+  (await req2p(st('geo').getAll())).forEach(g=>geo.set(g.k,g));
+  (await req2p(st('memo').getAll())).forEach(m=>memos.set(m.day,m.text));
+  (await req2p(st('hidden').getAll())).forEach(h=>hidden.add(h.id));
+  perm=N?N.permState():'none';
+  updatePerm();render();
+  if(perm!=='none')startScan(true);
+})();
+</script>
+</body>
+</html>
